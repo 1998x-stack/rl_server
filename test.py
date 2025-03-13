@@ -72,7 +72,7 @@ class MicroRTSAgent:
                 map_path='maps/10x10/basesWorkers10x10.xml',
                 reward_weight=np.array([10.0, 1.0, 1.0, 0.2, 1.0, 4.0])
             )
-        self.obs = self.env.reset()
+        self.obs = self.env.reset()[0]
     
     def __del__(self):
         #del self.env
@@ -133,7 +133,7 @@ class MicroRTSAgent:
                 unit_mask = np.array(self.env.vec_client.getUnitLocationMasks()).reshape(self.num_envs, -1)
                 with torch.no_grad():
                     action,mask,prob=self.get_action(states=torch.Tensor(self.obs), type_masks=unit_mask)
-                    next_obs, rs, done, _ = self.env.step(action.T)
+                    next_obs, rs, done, truncated, _ = self.env.step(action.T)
                     for i in range(self.num_envs):
                         exps[i].append([self.obs[i],action.T[i],rs[i],mask[i],done[i],prob.T[i],model_dict['train_version']])
                 self.obs=next_obs
@@ -157,7 +157,7 @@ class MicroRTSAgent:
                     self.tmp_states.append(self.obs)
                     self.tmp_actions.append(action.T)
                     
-                    next_obs, rs, done, _ = self.env.step(action.T)
+                    next_obs, rs, done, truncated, _ = self.env.step(action.T)
                     self.rewards.append(sum(rs) / len(rs))
                     self.total_rewards = self.total_rewards + rs[0]
                 for i in range(self.num_check_single_envs):

@@ -4,24 +4,22 @@
 :Coding: UTF-8
 :Version: 1.0
 """
-import sys,os
-sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
-
 """
 1 初始化各种结构
 2 采样
 3 发送采样数据到exps queue
 4 更新网络参数
 """
+import sys,os
+sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 
-
-import torch.multiprocessing as mp
 import torch.nn as nn
+import torch.multiprocessing as mp
 
 import time
+import queue
 import libs.log as log
 import libs.config as config
-import queue
 import libs.utils as utils
 
 class Sampler:
@@ -46,7 +44,7 @@ class Sampler:
 
         #设置随机种子
         utils.setup_seed()
-        sample_agent = config.create_agent(self.env_name,self.share_model)
+        sample_agent = config.create_agent(self.env_name, self.share_model)
                 
         while True:
             if self.model_dict['is_exit']:

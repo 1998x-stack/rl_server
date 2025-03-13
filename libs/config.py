@@ -7,25 +7,27 @@
 import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 
+# all for globals()
+import algo_envs.algo_base as AlgoBase
+from algo_envs.dqn_gym_classic import DQNGymClassicNet,DQNGymClassicAgent,DQNGymClassicCalculate
+
+from algo_envs.ppo_microrts import MicroRTSNet,MicroRTSAgent,MicroRTSCalculate
 from algo_envs.ppo_mujoco_normal import MujocoNormalNet,MujocoNormalAgent,MujocoNormalCalculate
 from algo_envs.ppo_mujoco_beta import MujocoBetaNet,MujocoBetaAgent,MujocoBetaCalculate
 from algo_envs.ppo_mujoco_beta_alpha import MujocoBetaAlphaNet,MujocoBetaAlphaAgent,MujocoBetaAlphaCalculate
 from algo_envs.ppo_mujoco_beta_relative import MujocoBetaRelativeNet,MujocoBetaRelativeAgent,MujocoBetaRelativeCalculate
 
-from algo_envs.dqn_gym_classic import DQNGymClassicNet,DQNGymClassicAgent,DQNGymClassicCalculate
-
-from algo_envs.ppo_microrts import MicroRTSNet,MicroRTSAgent,MicroRTSCalculate
 
 #获取环境名称
 def get_current_env_name() -> str:
-    #return "MujocoNormal"
-    #return "MujocoBeta"
-    #return "MujocoBetaAlpha"
+    # return "MujocoNormal"
+    # return "MujocoBeta"
+    # return "MujocoBetaAlpha"
     # return "MujocoBetaRelative"
-    #return "DQNGymClassic"
-    return "MicroRTS"
+    return "DQNGymClassic"
+    # return "MicroRTS"
 
-def create_net(env_name):
+def create_net(env_name) -> AlgoBase.AlgoBaseNet:
     net_name = env_name + 'Net'
     try:
         return globals()[net_name]()
@@ -33,7 +35,7 @@ def create_net(env_name):
         print("create_net error. net name is:",net_name)
         exit()
 
-def create_agent(env_name,sample_net,is_checker = False):
+def create_agent(env_name, sample_net, is_checker = False) -> AlgoBase.AlgoBaseAgent:
     agent_name = env_name + 'Agent'
     try:
         return globals()[agent_name](sample_net, is_checker)
@@ -44,7 +46,7 @@ def create_agent(env_name,sample_net,is_checker = False):
             print("create_sample_agent error. agent name is:",agent_name)
         exit()
 
-def create_calculate(env_name,calculate_net):
+def create_calculate(env_name, calculate_net) -> AlgoBase.AlgoBaseCalculate:
     calculate_name = env_name + 'Calculate'
     try:
         return globals()[calculate_name](calculate_net)
@@ -55,7 +57,6 @@ def create_calculate(env_name,calculate_net):
 #获取队列参数
 def get_current_queue_config() -> dict:
     return queue_args_dict
-    
 
 #模型redis配置信息
 def get_current_redis_MODEL_CONFIG() -> dict:

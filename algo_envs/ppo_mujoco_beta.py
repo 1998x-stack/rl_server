@@ -116,36 +116,36 @@ class MujocoBetaNet(AlgoBase.AlgoBaseNet):
                 AlgoBase.layer_init(nn.Linear(hide_dim, 1))
             )
         
-    def get_distris(self,states):
+    def get_distributions(self,states):
         # alpha and beta need to be larger than 1,so we use 'softplus' as the activation function and then plus 1
         alphas = self.alpha(states) + 1.0
         betas = self.beta(states) + 1.0
-        distris = Beta(alphas,betas)
-        return distris
+        dists = Beta(alphas,betas)
+        return dists
         
     def forward(self,states):
-        distris = self.get_distris(states)
-        mus = (distris.mean - 0.5) * 2.0 * MODEL_CONFIG['max_action']
+        dists = self.get_distributions(states)
+        mus = (dists.mean - 0.5) * 2.0 * MODEL_CONFIG['max_action']
         return mus
         
     def get_sample_data(self,states):
-        distris = self.get_distris(states)
-        sample_actions = distris.sample()
-        log_probs = distris.log_prob(sample_actions)
+        dists = self.get_distributions(states)
+        sample_actions = dists.sample()
+        log_probs = dists.log_prob(sample_actions)
         actions = (sample_actions - 0.5) * 2.0 * MODEL_CONFIG['max_action']
         return sample_actions,actions,log_probs
     
     def get_check_data(self,states):
-        distris = self.get_distris(states)
-        mus = (distris.mean - 0.5) * 2.0 * MODEL_CONFIG['max_action']
-        log_probs = distris.log_prob(distris.mean)
-        return mus,distris.entropy(),log_probs
+        dists = self.get_distributions(states)
+        mus = (dists.mean - 0.5) * 2.0 * MODEL_CONFIG['max_action']
+        log_probs = dists.log_prob(dists.mean)
+        return mus,dists.entropy(),log_probs
     
     def get_calculate_data(self,states,actions):
         values = self.value(states)
-        distris = self.get_distris(states)
-        log_probs = distris.log_prob(actions) 
-        return values,log_probs,distris.entropy()   
+        dists = self.get_distributions(states)
+        log_probs = dists.log_prob(actions) 
+        return values,log_probs,dists.entropy()   
     
     def update_state(self,version,grads_buffer):
         train_optim = torch.optim.Adam(params=self.parameters(), lr=TRAIN_CONFIG['learning_rate'])
@@ -176,11 +176,11 @@ class MujocoBetaAgent(AlgoBase.AlgoBaseAgent):
     
         if not is_checker:
             self.envs = [gym.make(env_name) for _ in range(self.num_envs)]
-            self.states = [self.envs[i].reset() for i in range(self.num_envs)]
+            self.states = [self.envs[i].reset()[0] for i in range(self.num_envs)]
         else:
             print("MujocoBeta check mujoco env is",env_name)
             self.envs = gym.make(env_name)
-            self.states = self.envs.reset()
+            self.states = self.envs.reset()[0]
         
     def sample_multi_envs(self,model_dict):
 
@@ -190,9 +190,9 @@ class MujocoBetaAgent(AlgoBase.AlgoBaseAgent):
             
             sample_acitons,actions,log_probs = self._get_sample_actions(self.states)
             for i in range(self.num_envs):
-                next_state_n, reward_n, done_n, _ = self.envs[i].step(actions[i])                
+                next_state_n, reward_n, done_n, truncated, _ = self.envs[i].step(actions[i])                
                 if done_n:
-                    next_state_n = self.envs[i].reset()
+                    next_state_n = self.envs[i].reset()[0]
                     
                 exps[i].append([self.states[i],sample_acitons[i],reward_n,done_n,log_probs[i],model_dict['train_version']])
                 self.states[i] = next_state_n
@@ -212,9 +212,9 @@ class MujocoBetaAgent(AlgoBase.AlgoBaseAgent):
         while True:
             #self.envs.render()
             mu,entropy,log_prob = self._get_single_action(self.states)
-            next_state_n, reward_n, is_done, _ = self.envs.step(mu)
+            next_state_n, reward_n, is_done, truncated, _ = self.envs.step(mu)
             if is_done:
-                next_state_n = self.envs.reset()
+                next_state_n = self.envs.reset()[0]
             self.states = next_state_n
             rewards.append(reward_n)
             mus.append(mu)

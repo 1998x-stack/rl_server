@@ -7,9 +7,10 @@
 import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 
-import torch 
 import gym
 import numpy as np
+
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from types import SimpleNamespace
@@ -19,13 +20,13 @@ import algo_envs.algo_base as AlgoBase
 
 TRAIN_ENVS = {
     'CartPole': SimpleNamespace(**{
-        'env_name': "CartPole-v0", 
+        'env_name': "CartPole-v1", 
         'obs_dim':4,  # 
         'act_dim':2, 
         'hide_dim':16
     }),
     'MountainCar': SimpleNamespace(**{
-        'env_name': "MountainCar-v0", 
+        'env_name': "MountainCar-v1", 
         'obs_dim': 2,  # 位置和速度
         'act_dim': 3,  # 左/无/右
         'hide_dim': 32  # 因奖励稀疏需更复杂网络
@@ -129,11 +130,11 @@ class DQNGymClassicAgent(AlgoBase.AlgoBaseAgent):
         
         if not is_checker:
             self.envs = [gym.make(env_name) for _ in range(self.num_envs)]
-            self.states = [self.envs[i].reset() for i in range(self.num_envs)]
+            self.states = [self.envs[i].reset()[0] for i in range(self.num_envs)]
         else:
             print("DQNGymClassic check env is",env_name)
             self.envs = gym.make(env_name)
-            self.states = self.envs.reset()
+            self.states = self.envs.reset()[0]
         
     def sample_multi_envs(self, model_dict):
         # 采样环境，保存 状态，动作，奖励，是否完成，训练版本号
@@ -141,9 +142,9 @@ class DQNGymClassicAgent(AlgoBase.AlgoBaseAgent):
         for _ in range(self.num_steps):
             actions = self._get_sample_actions(self.states)
             for i in range(self.num_envs):
-                next_state_n, reward_n, done_n, _ = self.envs[i].step(actions[i])                
+                next_state_n, reward_n, done_n, truncated, _ = self.envs[i].step(actions[i])                
                 if done_n:
-                    next_state_n = self.envs[i].reset()
+                    next_state_n = self.envs[i].reset()[0]
                     
                 exps[i].append([self.states[i], actions[i], reward_n, done_n, model_dict['train_version']])
                 self.states[i] = next_state_n
@@ -159,9 +160,9 @@ class DQNGymClassicAgent(AlgoBase.AlgoBaseAgent):
 
         while True:
             action = self._get_single_action(self.states)
-            next_state_n, reward_n, is_done, _ = self.envs.step(action)
+            next_state_n, reward_n, is_done, truncated, _ = self.envs.step(action)
             if is_done:
-                next_state_n = self.envs.reset()
+                next_state_n = self.envs.reset()[0]
             self.states = next_state_n
             rewards.append(reward_n)
             actions.append(action)

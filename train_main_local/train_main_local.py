@@ -20,10 +20,8 @@ while True
     7 发送采样数据到master
     8 整合梯度,发送新网络到 master 和 redis
 
-8 清理退出
-
+9 清理退出
 该文件为独立train_main_local,自带sampler
-
 """
 import sys,os
 
@@ -71,7 +69,7 @@ if __name__ == '__main__':
 
     #梯度整合网络
     train_net = config.create_net(model_env_name)    
-    #train_net = train_net.to(train_net.get_device()) 这里主要是采样
+    # train_net = train_net.to(train_net.get_device()) 这里主要是采样
     # print(train_net)
     # import numpy as np
     # parameters = sum([np.prod(p.shape) for p in train_net.parameters()])
@@ -85,7 +83,6 @@ if __name__ == '__main__':
         train_log.log_info("has no model data and starts a new train",print_screen=True)
         current_train_version = 0
 
-
     #当前网络参数版本
     model_dict = mp.Manager().dict()
     #被训练网络版本
@@ -96,7 +93,6 @@ if __name__ == '__main__':
     #各种训练容器
     trainers = []
     samplers = []
-    
 
     #启动trainer
     for i in range(queue_config['num_trainer']):
@@ -145,7 +141,6 @@ if __name__ == '__main__':
                 act_array = np.concatenate(act_array, axis=0)
                 np.save('obs.npy', obs_array)
                 np.save('act.npy', act_array)
-
                 
                 train_log.log_info("start exit train_main_local",print_screen=True)
                 

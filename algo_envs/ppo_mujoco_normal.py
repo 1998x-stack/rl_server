@@ -97,31 +97,31 @@ class MujocoNormalNet(AlgoBase.AlgoBaseNet):
                 AlgoBase.layer_init(nn.Linear(hide_dim, 1))
             )
         
-    def get_distris(self,states):
+    def get_distributions(self,states):
         mus = self.mu(states)
-        distris = Normal(mus,torch.exp(self.log_std))
-        return distris
+        dists = Normal(mus,torch.exp(self.log_std))
+        return dists
         
     def forward(self,states):
         mus = self.mu(states)
         return mus
     
     def get_sample_data(self,states):
-        distris = self.get_distris(states)
-        actions = distris.sample()
-        log_probs = distris.log_prob(actions)
+        dists = self.get_distributions(states)
+        actions = dists.sample()
+        log_probs = dists.log_prob(actions)
         return actions,log_probs
     
     def get_check_data(self,states):
-        distris = self.get_distris(states)
+        dists = self.get_distributions(states)
         mus = self.mu(states)
-        return mus,distris.entropy()
+        return mus,dists.entropy()
     
     def get_calculate_data(self,states,actions):
         values = self.value(states)
-        distris = self.get_distris(states)
-        log_probs = distris.log_prob(actions) 
-        return values,log_probs,distris.entropy()   
+        dists = self.get_distributions(states)
+        log_probs = dists.log_prob(actions) 
+        return values,log_probs,dists.entropy()   
         
     def update_state(self,version,grads_buffer):
         train_optim = torch.optim.Adam(params=self.parameters(), lr=TRAIN_CONFIG['learning_rate'])
@@ -150,11 +150,11 @@ class MujocoNormalAgent(AlgoBase.AlgoBaseAgent):
     
         if not is_checker:
             self.envs = [gym.make(env_name) for _ in range(self.num_envs)]
-            self.states = [self.envs[i].reset() for i in range(self.num_envs)]
+            self.states = [self.envs[i].reset()[0] for i in range(self.num_envs)]
         else:
             print("MujocoNormal check mujoco env is",env_name)
             self.envs = gym.make(env_name)
-            self.states = self.envs.reset()
+            self.states = self.envs.reset()[0]
         
     def sample_multi_envs(self,model_dict):
 
@@ -166,9 +166,9 @@ class MujocoNormalAgent(AlgoBase.AlgoBaseAgent):
             for i in range(self.num_envs):
                 # if i == 0:
                 #     self.envs[i].render()
-                next_state_n, reward_n, done_n, _ = self.envs[i].step(actions[i])                
+                next_state_n, reward_n, done_n, truncated, _ = self.envs[i].step(actions[i])                
                 if done_n:
-                    next_state_n = self.envs[i].reset()
+                    next_state_n = self.envs[i].reset()[0]
                     
                 exps[i].append([self.states[i],actions[i],reward_n,done_n,log_probs[i],model_dict['train_version']])
                 self.states[i] = next_state_n
@@ -187,9 +187,9 @@ class MujocoNormalAgent(AlgoBase.AlgoBaseAgent):
         while True:
             #self.envs.render()
             mu,entropy = self._get_single_action(self.states)
-            next_state_n, reward_n, is_done, _ = self.envs.step(mu)
+            next_state_n, reward_n, is_done, truncated, _ = self.envs.step(mu)
             if is_done:
-                next_state_n = self.envs.reset()
+                next_state_n = self.envs.reset()[0]
             self.states = next_state_n
             rewards.append(reward_n)
             mus.append(mu)

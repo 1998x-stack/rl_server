@@ -7,15 +7,14 @@
 import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 
-import torch.multiprocessing as mp
 import time
-import libs.redis_cache as redis_cache
+import argparse
+import torch.multiprocessing as mp
+from tensorboardX import SummaryWriter
 import libs.log as log
-import checker
 import libs.utils as utils
 import libs.config as config
-import argparse
-from tensorboardX import SummaryWriter
+import libs.redis_cache as redis_cache
 import checker
 
 if __name__ == '__main__':

@@ -8,13 +8,13 @@ import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 
 
-import torch.multiprocessing as mp
-
 import time
-import libs.config as config
+import torch.multiprocessing as mp
 from tensorboardX import SummaryWriter
-import libs.utils as utils
+
 import libs.log as log
+import libs.utils as utils
+import libs.config as config
 
 class Checker:
 
@@ -67,14 +67,14 @@ class Checker:
     def run_checker(self,comment=None):
         if comment is not None:   
             self.comment = comment
-        self.process=mp.Process(target=self.process_function)
-        self.process.start()
+        self.process=mp.Process(target=self.process_function)  # 创建进程
+        self.process.start() # 启动进程
         self.log.log_info('start checker processid ' + str(self.process.pid),print_screen=True)
 
     def stop(self):
         try:
             if self.process is not None:
-                self.process.terminate()
-                self.process.join()
+                self.process.terminate() # 强制终止子进程
+                self.process.join() # 等待进程结束
         except:
             self.log.log_exception(print_screen=True)

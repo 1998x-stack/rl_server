@@ -12,12 +12,11 @@
 import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 
+import argparse
 import libs.log as log
 import libs.config as config
 import libs.utils as utils
 import libs.redis_cache as redis_cache
-import torch
-import argparse
 
 
 if __name__ == '__main__':

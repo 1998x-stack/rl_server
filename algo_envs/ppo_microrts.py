@@ -46,7 +46,6 @@ MODEL_CONFIG['action_shape'] = [100, 6, 4, 4, 4, 4, 7, 49] # 动作空间
 MODEL_CONFIG['device'] = torch.device('cuda:0' if torch.cuda.is_available() and False else 'cpu') # device
 
 
-
 class MaskedCategorical(Categorical):
     """带动作掩码的分类分布，适用于工业场景下的受限动作选择
     
@@ -170,9 +169,7 @@ class MaskedCategorical(Categorical):
         """返回有效动作中的最大概率索引"""
         return (self.probs * self.action_masks).argmax(dim=-1)
 
-
 class MicroRTSNet(AlgoBase.AlgoBaseNet):
-    
     def __init__(self):
         super(MicroRTSNet,self).__init__()
         self.device = MODEL_CONFIG['device']
@@ -195,6 +192,7 @@ class MicroRTSNet(AlgoBase.AlgoBaseNet):
         self.actor_produce = AlgoBase.layer_init(nn.Linear(256, 4), std=0.01)
         self.actor_produce_type = AlgoBase.layer_init(nn.Linear(256, 7), std=0.01)
         self.actor_attack = AlgoBase.layer_init(nn.Linear(256, 49), std=0.01)
+
         self.critic = AlgoBase.layer_init(nn.Linear(256, 1), std=1)
         self.train_optim = torch.optim.Adam(params=self.parameters(), lr=TRAIN_CONFIG['learning_rate'])
 
@@ -223,8 +221,8 @@ class MicroRTSAgent(AlgoBase.AlgoBaseAgent):
     def __init__(self,sample_net, is_checker=False):
         self.model_config = MODEL_CONFIG
         self.sample_net = sample_net
-        self.num_envs = MODEL_CONFIG['num_envs']
         self.num_check_single_envs = 16
+        self.num_envs = MODEL_CONFIG['num_envs']
         self.num_steps = MODEL_CONFIG['num_steps']
         self.action_shape = MODEL_CONFIG['action_shape']
         self.outcomes = deque(maxlen=100)
@@ -247,7 +245,7 @@ class MicroRTSAgent(AlgoBase.AlgoBaseAgent):
                 map_path='maps/10x10/basesWorkers10x10.xml',
                 reward_weight=np.array([10.0, 1.0, 1.0, 0.2, 1.0, 4.0])
             )
-        self.obs = self.env.reset()
+        self.obs = self.env.reset()[0]
     
     def __del__(self):
         #del self.env
@@ -258,15 +256,10 @@ class MicroRTSAgent(AlgoBase.AlgoBaseAgent):
 
     @torch.no_grad()
     def get_action(self,states, type_masks=None):
-        
         split_logits, _ = self.sample_net(states)
-        
         type_masks = torch.Tensor(type_masks)
-        # print(logits.shape,type_masks.shape,len(split_logits),split_logits[0].shape)
         multi_categoricals = [MaskedCategorical(logits=split_logits[0], masks=type_masks)]
         action_components = [multi_categoricals[0].sample()]
-        
-        # action_masks = torch.ones((20,78))
         action_masks = np.array(self.env.vec_client.getUnitActionMasks(action_components[0].cpu().numpy())).reshape(len(action_components[0]), -1)
         split_suam = torch.split(torch.Tensor(action_masks), self.action_shape[1:], dim=1)
         multi_categoricals = multi_categoricals + [MaskedCategorical(logits=logits, masks=iam) for (logits, iam) in
@@ -274,22 +267,15 @@ class MicroRTSAgent(AlgoBase.AlgoBaseAgent):
         masks = torch.cat((type_masks, torch.Tensor(action_masks)), 1)
         action_components += [categorical.sample() for categorical in multi_categoricals[1:]]
         action = torch.stack(action_components)
-        
         prob=torch.stack([multi_categorical.log_prob(action_) for multi_categorical , action_ in zip(multi_categoricals,action)])
-        
         return action.cpu().numpy(), masks.cpu().numpy(),prob.cpu().numpy()
     
     @torch.no_grad()
     def _get_single_action(self,states, type_masks=None):
-        
         split_logits, _ = self.sample_net(states)
-        
         type_masks = torch.Tensor(type_masks)
-        # print(logits.shape,type_masks.shape,len(split_logits),split_logits[0].shape)
         multi_categoricals = [MaskedCategorical(logits=split_logits[0], masks=type_masks)]
         action_components = [multi_categoricals[0].argmax()]
-        
-        # action_masks = torch.ones((20,78))
         action_masks = np.array(self.env.vec_client.getUnitActionMasks(action_components[0].cpu().numpy())).reshape(len(action_components[0]), -1)
         split_suam = torch.split(torch.Tensor(action_masks), self.action_shape[1:], dim=1)
         multi_categoricals = multi_categoricals + [MaskedCategorical(logits=logits, masks=iam) for (logits, iam) in
@@ -304,11 +290,10 @@ class MicroRTSAgent(AlgoBase.AlgoBaseAgent):
         if self.num_steps>0:
             for _ in range(0, self.num_steps):
                 self.steps = self.steps + 1
-                #self.env.env.render()
                 unit_mask = np.array(self.env.vec_client.getUnitLocationMasks()).reshape(self.num_envs, -1)
                 with torch.no_grad():
                     action,mask,prob=self.get_action(states=torch.Tensor(self.obs), type_masks=unit_mask)
-                    next_obs, rs, done, _ = self.env.step(action.T)
+                    next_obs, rs, done, truncated, _ = self.env.step(action.T)
                     for i in range(self.num_envs):
                         exps[i].append([self.obs[i],action.T[i],rs[i],mask[i],done[i],prob.T[i],model_dict['train_version']])
                 self.obs=next_obs
@@ -320,12 +305,11 @@ class MicroRTSAgent(AlgoBase.AlgoBaseAgent):
         step_record_dict['reward'] = 0
         step_record_dict['total_reward'] = 0
 
-
         for _ in range(0, 512):
             unit_mask = np.array(self.env.vec_client.getUnitLocationMasks()).reshape(self.num_check_single_envs, -1)
             with torch.no_grad():
                 action = self._get_single_action(states=torch.Tensor(self.obs), type_masks=unit_mask)
-                next_obs, rs, done, _ = self.env.step(action.T)
+                next_obs, rs, done, truncated, _ = self.env.step(action.T)
                 self.rewards.append(sum(rs) / len(rs))
                 self.total_rewards = self.total_rewards + rs[0]
             for i in range(self.num_check_single_envs):
@@ -342,8 +326,8 @@ class MicroRTSAgent(AlgoBase.AlgoBaseAgent):
                       self.total_rewards = 0   
             self.obs=next_obs
         return step_record_dict
-    
-    
+
+
 class MicroRTSCalculate(AlgoBase.AlgoBaseCalculate):
     def __init__(self,share_model):
         self.train_config = TRAIN_CONFIG
@@ -359,18 +343,13 @@ class MicroRTSCalculate(AlgoBase.AlgoBaseCalculate):
         self.masks = torch.Tensor([]).to(device=self.device)
         self.probs = torch.Tensor([]).to(device=self.device)
         self.advantages = torch.Tensor([]).to(device=self.device)
-        
         self.calculate_net = MicroRTSNet()
-        #self.calculate_net = self.share_model
         
     def generate_grads(self,samples,model_dict):
-        
         self.calculate_net.load_state_dict(self.share_model.state_dict())
         train_version = model_dict['train_version']
-                    
         ent_coef = self.train_config['ent_coef']
         vf_coef = self.train_config['vf_coef']
-        
         
         len_samples = len(samples)
         dones = torch.zeros((len_samples,)).to(device=self.device)
@@ -391,10 +370,7 @@ class MicroRTSCalculate(AlgoBase.AlgoBaseCalculate):
             dones[i] = torch.Tensor(np.array(samples[i][4]).reshape(-1,1)).to(device=self.device)
             b_log_probs[i] = torch.Tensor(np.array(samples[i][5])).to(device=self.device)  
         
-        
         new_log_prob, entropy, new_values = self.get_prob_entropy_value(b_states, actions=b_actions.T, masks=b_masks)
-                
-
         with torch.no_grad():
             last_gae_lam = 0
             b_advantages = torch.zeros((len_samples,))
@@ -413,38 +389,24 @@ class MicroRTSCalculate(AlgoBase.AlgoBaseCalculate):
         
         ratio1 = (new_log_prob - b_log_probs).exp()
         ratio2 = (new_log_prob.sum(1)-b_log_probs.sum(1)).exp().reshape(-1,1).expand_as(ratio1)
-        
         # ratio2 = ratio1.prod(1,keepdim=True).expand_as(ratio1)
         # ratio2 = AlgoBase.GradCoef.apply(ratio2,1.0/ratio2.shape[1])
-        
         ratio3 = 0.5*ratio1+0.5*ratio2
                             
         # ratio = torch.where(b_advantages >= 0,torch.where(ratio <= 1 + clip_coef,ratio,ratio/ratio.detach()*(1 + clip_coef)),
         #                      torch.where(ratio >= 1 - clip_coef,ratio,ratio/ratio.detach()*(1 - clip_coef)))
         
         pg_loss1 = self.get_pg_loss(ratio1,b_advantages)
-        
         pg_loss2 = self.get_pg_loss(ratio2,b_advantages)
-        
         pg_loss3 = self.get_pg_loss(ratio3,b_advantages)
-        
         pg_loss4 = (pg_loss1+pg_loss2)/2
-        
         pg_loss5 = pg_loss1+pg_loss2
-        
         # Policy loss
         pg_loss = -pg_loss3.mean()
-        
         entropy_loss = -entropy.mean()
-        
-
-
         v_loss = ((new_values - b_returns) ** 2).mean()
-
         loss = pg_loss + ent_coef * entropy_loss + v_loss*vf_coef
-
         self.calculate_net.zero_grad()
-
         loss.backward()
         grads = [
             param.grad.data.cpu().numpy()
@@ -463,13 +425,10 @@ class MicroRTSCalculate(AlgoBase.AlgoBaseCalculate):
         return log_prob.T, entropy.T, value.reshape((-1,))
     
     def get_pg_loss(self,ratio,advantage):
-        
         clip_coef = self.train_config['clip_coef']
         max_clip_coef = self.train_config['max_clip_coef']
-        
         base_value = ratio * advantage
         clip_value = torch.clamp(ratio,1.0 - clip_coef,1.0 + clip_coef) * advantage
         min_loss_policy = torch.min(base_value, clip_value)
         max_loss_policy = torch.max(min_loss_policy,max_clip_coef * advantage)
-        
-        return torch.where(advantage>=0,min_loss_policy,max_loss_policy)
+        return torch.where(advantage >= 0, min_loss_policy, max_loss_policy)
