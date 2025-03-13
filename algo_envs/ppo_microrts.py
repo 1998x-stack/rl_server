@@ -263,13 +263,13 @@ class MicroRTSAgent(AlgoBase.AlgoBaseAgent):
         
         type_masks = torch.Tensor(type_masks)
         # print(logits.shape,type_masks.shape,len(split_logits),split_logits[0].shape)
-        multi_categoricals = [CategoricalMasked(logits=split_logits[0], masks=type_masks)]
+        multi_categoricals = [MaskedCategorical(logits=split_logits[0], masks=type_masks)]
         action_components = [multi_categoricals[0].sample()]
         
         # action_masks = torch.ones((20,78))
         action_masks = np.array(self.env.vec_client.getUnitActionMasks(action_components[0].cpu().numpy())).reshape(len(action_components[0]), -1)
         split_suam = torch.split(torch.Tensor(action_masks), self.action_shape[1:], dim=1)
-        multi_categoricals = multi_categoricals + [CategoricalMasked(logits=logits, masks=iam) for (logits, iam) in
+        multi_categoricals = multi_categoricals + [MaskedCategorical(logits=logits, masks=iam) for (logits, iam) in
                                                     zip(split_logits[1:], split_suam)]
         masks = torch.cat((type_masks, torch.Tensor(action_masks)), 1)
         action_components += [categorical.sample() for categorical in multi_categoricals[1:]]
@@ -286,13 +286,13 @@ class MicroRTSAgent(AlgoBase.AlgoBaseAgent):
         
         type_masks = torch.Tensor(type_masks)
         # print(logits.shape,type_masks.shape,len(split_logits),split_logits[0].shape)
-        multi_categoricals = [CategoricalMasked(logits=split_logits[0], masks=type_masks)]
+        multi_categoricals = [MaskedCategorical(logits=split_logits[0], masks=type_masks)]
         action_components = [multi_categoricals[0].argmax()]
         
         # action_masks = torch.ones((20,78))
         action_masks = np.array(self.env.vec_client.getUnitActionMasks(action_components[0].cpu().numpy())).reshape(len(action_components[0]), -1)
         split_suam = torch.split(torch.Tensor(action_masks), self.action_shape[1:], dim=1)
-        multi_categoricals = multi_categoricals + [CategoricalMasked(logits=logits, masks=iam) for (logits, iam) in
+        multi_categoricals = multi_categoricals + [MaskedCategorical(logits=logits, masks=iam) for (logits, iam) in
                                                     zip(split_logits[1:], split_suam)]
         action_components += [categorical.argmax() for categorical in multi_categoricals[1:]]
         action = torch.stack(action_components)
@@ -457,7 +457,7 @@ class MicroRTSCalculate(AlgoBase.AlgoBaseCalculate):
     def get_prob_entropy_value(self,states, actions, masks, action_space = [100, 6, 4, 4, 4, 4, 7, 49]):
         split_logits, value = self.calculate_net(states)
         split_masks = torch.split(masks, action_space, dim=1)
-        multi_categoricals = [CategoricalMasked(logits=logits, masks=iam) for (logits, iam) in zip(split_logits, split_masks)]
+        multi_categoricals = [MaskedCategorical(logits=logits, masks=iam) for (logits, iam) in zip(split_logits, split_masks)]
         log_prob = torch.stack([categorical.log_prob(a) for a, categorical in zip(actions, multi_categoricals)])
         entropy = torch.stack([categorical.entropy() for categorical in multi_categoricals])
         return log_prob.T, entropy.T, value.reshape((-1,))
