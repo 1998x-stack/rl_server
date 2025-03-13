@@ -14,13 +14,13 @@ from torch.distributions.categorical import Categorical
 import algo_envs.algo_base as AlgoBase
  
 #模型及环境 MicroRTSEnv
-model_config = dict()
-model_config['env_name'] = "MicroRTSEnv" #其实用不到,只是为了区别
-model_config['num_envs'] = 8 # 环境数量 microRTS
-model_config['num_steps'] = 512 # 一次采样的长度
-model_config['obs_space'] = (10, 10, 27) # 状态空间 
-model_config['action_shape'] = [100, 6, 4, 4, 4, 4, 7, 49] # 动作空间
-model_config['device'] = torch.device('cuda:0' if torch.cuda.is_available() and False else 'cpu') # device
+MODEL_CONFIG = dict()
+MODEL_CONFIG['env_name'] = "MicroRTSEnv" #其实用不到,只是为了区别
+MODEL_CONFIG['num_envs'] = 8 # 环境数量 microRTS
+MODEL_CONFIG['num_steps'] = 512 # 一次采样的长度
+MODEL_CONFIG['obs_space'] = (10, 10, 27) # 状态空间 
+MODEL_CONFIG['action_shape'] = [100, 6, 4, 4, 4, 4, 7, 49] # 动作空间
+MODEL_CONFIG['device'] = torch.device('cuda:0' if torch.cuda.is_available() and False else 'cpu') # device
 class CategoricalMasked(Categorical):
     def __init__(self, probs=None, logits=None, validate_args=None, masks=[], use_gpu = False):
         self.masks = masks
@@ -46,12 +46,12 @@ class CategoricalMasked(Categorical):
 
 class MicroRTSAgent:
     def __init__(self,sample_net, is_checker=False):
-        self.model_config = model_config
+        self.model_config = MODEL_CONFIG
         self.sample_net = sample_net
-        self.num_envs = model_config['num_envs']
+        self.num_envs = MODEL_CONFIG['num_envs']
         self.num_check_envs = 16
-        self.num_steps = model_config['num_steps']
-        self.action_shape = model_config['action_shape']
+        self.num_steps = MODEL_CONFIG['num_steps']
+        self.action_shape = MODEL_CONFIG['action_shape']
         self.outcomes = deque(maxlen=100)
         self.rewards = deque(maxlen=100)
         self.total_rewards = 0

@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+"""
+:Author: XM
+:Coding: UTF-8
+:Version: 1.0
+"""
+import sys,os
+sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
+
 import torch 
 import torch.nn as nn
 from gym_microrts.envs.vec_env import MicroRTSVecEnv
@@ -8,29 +17,29 @@ from torch.distributions.categorical import Categorical
 import algo_envs.algo_base as AlgoBase
 
 #训练参数
-train_config = dict()
-train_config['gae_lambda'] = 0.95 # gae lamada
-train_config['gamma'] = 0.99 # 衰减系数
-train_config['num_reuse'] = 1 # 样本重用次数
-train_config['batch_size'] = 512 # 批次大小
-train_config['dispatch_size'] = train_config['batch_size']*2 # 分发大小
-train_config['clip_coef'] = 0.2 # pg loss clip
-train_config['max_clip_coef'] = 4 # pg loss max clip
-train_config['ent_coef'] = 0.01 # 熵的权重
-train_config['vf_coef'] = 1 # value loss 的权重
-train_config['clip_v_loss'] = False # 是否clip value loss
-train_config['learning_rate'] = 2.5e-4 # 学习率
-train_config['enable_target'] = False #是否允许目标V网络
-train_config['update_alpha'] = 0.2
+TRAIN_CONFIG = dict()
+TRAIN_CONFIG['gae_lambda'] = 0.95 # gae lamada
+TRAIN_CONFIG['gamma'] = 0.99 # 衰减系数
+TRAIN_CONFIG['num_reuse'] = 1 # 样本重用次数
+TRAIN_CONFIG['batch_size'] = 512 # 批次大小
+TRAIN_CONFIG['dispatch_size'] = TRAIN_CONFIG['batch_size']*2 # 分发大小
+TRAIN_CONFIG['clip_coef'] = 0.2 # pg loss clip
+TRAIN_CONFIG['max_clip_coef'] = 4 # pg loss max clip
+TRAIN_CONFIG['ent_coef'] = 0.01 # 熵的权重
+TRAIN_CONFIG['vf_coef'] = 1 # value loss 的权重
+TRAIN_CONFIG['clip_v_loss'] = False # 是否clip value loss
+TRAIN_CONFIG['learning_rate'] = 2.5e-4 # 学习率
+TRAIN_CONFIG['enable_target'] = False #是否允许目标V网络
+TRAIN_CONFIG['update_alpha'] = 0.2
 
 #模型及环境 MicroRTSEnv
-model_config = dict()
-model_config['env_name'] = "MicroRTSEnv" #其实用不到,只是为了区别
-model_config['num_envs'] = 8 # 环境数量 microRTS
-model_config['num_steps'] = 512 # 一次采样的长度
-model_config['obs_space'] = (10, 10, 27) # 状态空间 
-model_config['action_shape'] = [100, 6, 4, 4, 4, 4, 7, 49] # 动作空间
-model_config['device'] = torch.device('cuda:0' if torch.cuda.is_available() and False else 'cpu') # device
+MODEL_CONFIG = dict()
+MODEL_CONFIG['env_name'] = "MicroRTSEnv" #其实用不到,只是为了区别
+MODEL_CONFIG['num_envs'] = 8 # 环境数量 microRTS
+MODEL_CONFIG['num_steps'] = 512 # 一次采样的长度
+MODEL_CONFIG['obs_space'] = (10, 10, 27) # 状态空间 
+MODEL_CONFIG['action_shape'] = [100, 6, 4, 4, 4, 4, 7, 49] # 动作空间
+MODEL_CONFIG['device'] = torch.device('cuda:0' if torch.cuda.is_available() and False else 'cpu') # device
 
 
 class CategoricalMasked(Categorical):
@@ -66,11 +75,11 @@ class MicroRTSNet(nn.Module):
         
     @staticmethod
     def get_device():
-        return model_config['device']
+        return MODEL_CONFIG['device']
 
     def __init__(self):
         super(MicroRTSNet,self).__init__()
-        self.device = model_config['device']
+        self.device = MODEL_CONFIG['device']
 
         self.network = nn.Sequential(
             MicroRTSNet.layer_init(nn.Conv2d(27, 16, kernel_size=(3, 3), stride=(2, 2))),
@@ -98,21 +107,21 @@ class MicroRTSNet(nn.Module):
         return [self.actor_unit(obs), self.actor_type(obs), self.actor_move(obs), self.actor_harvest(obs), self.actor_return(obs), self.actor_produce(obs), self.actor_produce_type(obs), self.actor_attack(obs)], self.critic(obs)
  
     def update_state(self,version,grads_buffer):
-        train_optim = torch.optim.Adam(params=self.parameters(), lr=train_config['learning_rate'])
+        train_optim = torch.optim.Adam(params=self.parameters(), lr=TRAIN_CONFIG['learning_rate'])
         train_optim.zero_grad()
         #更新网络参数
         for param, grad in zip(self.parameters(), grads_buffer):
-            param.grad = torch.FloatTensor(grad).to(model_config['device'])
+            param.grad = torch.FloatTensor(grad).to(MODEL_CONFIG['device'])
         train_optim.step()
         
 class MicroRTSAgent:
     def __init__(self,sample_net, is_checker=False):
-        self.model_config = model_config
+        self.model_config = MODEL_CONFIG
         self.sample_net = sample_net
-        self.num_envs = model_config['num_envs']
+        self.num_envs = MODEL_CONFIG['num_envs']
         self.num_check_envs = 16
-        self.num_steps = model_config['num_steps']
-        self.action_shape = model_config['action_shape']
+        self.num_steps = MODEL_CONFIG['num_steps']
+        self.action_shape = MODEL_CONFIG['action_shape']
         self.outcomes = deque(maxlen=100)
         self.rewards = deque(maxlen=100)
         self.total_rewards = 0
@@ -232,8 +241,8 @@ class MicroRTSAgent:
     
 class MicroRTSCalculate:
     def __init__(self,share_model):
-        self.train_config = train_config
-        self.model_config = model_config
+        self.train_config = TRAIN_CONFIG
+        self.model_config = MODEL_CONFIG
         self.num_reuse = self.train_config['num_reuse']
         self.dispatch_size = self.train_config['dispatch_size']
         self.batch_size = self.train_config['batch_size']

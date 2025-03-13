@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+"""
+:Author: XM
+:Coding: UTF-8
+:Version: 1.0
+"""
 import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 
@@ -12,7 +18,7 @@ from torch.distributions.beta import Beta
 import algo_envs.algo_base as AlgoBase
 from types import SimpleNamespace
 
-train_envs = {
+TRAIN_ENVS = {
     'Swimmer':SimpleNamespace(**{'env_name': "Swimmer-v3",'obs_dim':8,'act_dim':2,'hide_dim':32,'use_noise':True}),
     'HalfCheetah':SimpleNamespace(**{'env_name': "HalfCheetah-v3",'obs_dim':17,'act_dim':6,'hide_dim':64,'use_noise':True}),
     'Ant':SimpleNamespace(**{'env_name': "Ant-v3",'obs_dim':111,'act_dim':8,'hide_dim':256,'use_noise':True}),
@@ -25,38 +31,38 @@ train_envs = {
 current_env_name = 'Swimmer'
 
 #训练参数
-train_config = dict()
-train_config['gae_lambda'] = 0.95 # gae lamada
-train_config['gamma'] = 0.99 # 衰减系数
-train_config['clip_coef'] = 0.2 # pg loss clip
-train_config['max_clip_coef'] = 2 # pg loss max clip
-train_config['ent_coef'] = 0.001 # 熵的权重
-train_config['vf_coef'] = 1 # value loss 的权重
-train_config['q_coef'] = 1 # q loss 的权重
-train_config['q_mu_coef'] = 0.003 # q_pi loss 的权重
-train_config['mu_probs_coef'] = 0.002# pi_probs的权重
-train_config['clip_v_loss'] = False # 是否clip value loss
-train_config['learning_rate'] = 2.5e-4 # 学习率
+TRAIN_CONFIG = dict()
+TRAIN_CONFIG['gae_lambda'] = 0.95 # gae lamada
+TRAIN_CONFIG['gamma'] = 0.99 # 衰减系数
+TRAIN_CONFIG['clip_coef'] = 0.2 # pg loss clip
+TRAIN_CONFIG['max_clip_coef'] = 2 # pg loss max clip
+TRAIN_CONFIG['ent_coef'] = 0.001 # 熵的权重
+TRAIN_CONFIG['vf_coef'] = 1 # value loss 的权重
+TRAIN_CONFIG['q_coef'] = 1 # q loss 的权重
+TRAIN_CONFIG['q_mu_coef'] = 0.003 # q_pi loss 的权重
+TRAIN_CONFIG['mu_probs_coef'] = 0.002# pi_probs的权重
+TRAIN_CONFIG['clip_v_loss'] = False # 是否clip value loss
+TRAIN_CONFIG['learning_rate'] = 2.5e-4 # 学习率
 
 #模型及环境 HalfCheetah
-model_config = dict()
-model_config['num_envs'] = 32 # 环境数量 microRTS
-model_config['num_steps'] = 1000 # 一次采样的长度
-model_config['obs_space'] = (8,) # 状态空间 
-model_config['action_shape'] = Box(-1.0, 1.0, (6,), np.float32) # 动作空间
-model_config['device'] = torch.device('cuda:0' if torch.cuda.is_available() and False else 'cpu') # device
-model_config['max_action'] = 1.0
+MODEL_CONFIG = dict()
+MODEL_CONFIG['num_envs'] = 32 # 环境数量 microRTS
+MODEL_CONFIG['num_steps'] = 1000 # 一次采样的长度
+MODEL_CONFIG['obs_space'] = (8,) # 状态空间 
+MODEL_CONFIG['action_shape'] = Box(-1.0, 1.0, (6,), np.float32) # 动作空间
+MODEL_CONFIG['device'] = torch.device('cuda:0' if torch.cuda.is_available() and False else 'cpu') # device
+MODEL_CONFIG['max_action'] = 1.0
 
 class MujocoNormalQNet(AlgoBase.AlgoBaseNet):    
     
     def __init__(self):
         super(MujocoNormalQNet,self).__init__()
         
-        obs_dim = train_envs[current_env_name].obs_dim
-        act_dim = train_envs[current_env_name].act_dim
-        hide_dim = train_envs[current_env_name].hide_dim
+        obs_dim = TRAIN_ENVS[current_env_name].obs_dim
+        act_dim = TRAIN_ENVS[current_env_name].act_dim
+        hide_dim = TRAIN_ENVS[current_env_name].hide_dim
                 
-        if train_envs[current_env_name].use_noise:
+        if TRAIN_ENVS[current_env_name].use_noise:
             self.noise_layer_out = AlgoBase.NoisyLinear(hide_dim,act_dim)
             self.noise_layer_hide = AlgoBase.NoisyLinear(hide_dim,hide_dim)
                             
@@ -128,14 +134,14 @@ class MujocoNormalQNet(AlgoBase.AlgoBaseNet):
         return values,log_probs,distris.entropy()   
     
     def update_state(self,version,grads_buffer):
-        train_optim = torch.optim.Adam(params=self.parameters(), lr=train_config['learning_rate'])
+        train_optim = torch.optim.Adam(params=self.parameters(), lr=TRAIN_CONFIG['learning_rate'])
         train_optim.zero_grad()
         #更新网络参数
         for param, grad in zip(self.parameters(), grads_buffer):
             param.grad = torch.FloatTensor(grad)
         train_optim.step()
         
-        if train_envs[current_env_name].use_noise:
+        if TRAIN_ENVS[current_env_name].use_noise:
             self.noise_layer_out.sample_noise()
             self.noise_layer_hide.sample_noise()
             
@@ -164,14 +170,14 @@ class MujocoNormalQAgent(AlgoBase.AlgoBaseAgent):
     
     def __init__(self,sample_net:MujocoNormalQNet,is_checker):
         super(MujocoNormalQAgent,self).__init__()
-        self.model_config = model_config
+        self.model_config = MODEL_CONFIG
         self.sample_net = sample_net
-        self.device = model_config['device']
-        self.num_steps = model_config['num_steps']
-        self.num_envs = model_config['num_envs']
+        self.device = MODEL_CONFIG['device']
+        self.num_steps = MODEL_CONFIG['num_steps']
+        self.num_envs = MODEL_CONFIG['num_envs']
         self.rewards = []
         
-        env_name = train_envs[current_env_name].env_name
+        env_name = TRAIN_ENVS[current_env_name].env_name
     
         if not is_checker:
             self.envs = [gym.make(env_name) for _ in range(self.num_envs)]
@@ -252,8 +258,8 @@ class MujocoNormalQCalculate(AlgoBase.AlgoBaseCalculate):
     
     def __init__(self,share_model:MujocoNormalQNet):
         super(MujocoNormalQCalculate,self).__init__()
-        self.train_config = train_config
-        self.model_config = model_config 
+        self.train_config = TRAIN_CONFIG
+        self.model_config = MODEL_CONFIG 
         self.share_model = share_model
         self.device = self.model_config['device']
         self.calculate_net = MujocoNormalQNet()

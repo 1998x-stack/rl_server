@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+"""
+:Author: XM
+:Coding: UTF-8
+:Version: 1.0
+"""
+import sys,os
+sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 
 """
 0 启动logger,tensorboardX
@@ -12,13 +20,10 @@ while True
     7 发送采样数据到master
     8 整合梯度，发送新网络到 master 和 redis
 
-8 清理退出
+9 清理退出
 
 该文件为多个train_main_grads, 一个 grads_main,多个 sample_main
-
 """
-import sys,os
-sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 
 import argparse
 import trainer_redis_grads
@@ -50,7 +55,7 @@ if __name__ == '__main__':
     
     # 设置参数
     queue_config = config.get_current_queue_config()
-    model_redis_config = config.get_current_redis_model_config()
+    model_redis_config = config.get_current_redis_MODEL_CONFIG()
     grads_redis_config = config.get_current_redis_grads_config()
     
     #梯度队列

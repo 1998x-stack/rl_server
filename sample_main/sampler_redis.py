@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+"""
+:Author: XM
+:Coding: UTF-8
+:Version: 1.0
+"""
+import sys,os
+sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 
 """
 1 初始化各种结构
@@ -5,8 +13,6 @@
 3 发送采样数据到exps queue
 4 更新网络参数
 """
-import sys,os
-sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 
 
 import torch.multiprocessing as mp

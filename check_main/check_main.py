@@ -1,4 +1,10 @@
-import sys, os
+# -*- coding: utf-8 -*-
+"""
+:Author: XM
+:Coding: UTF-8
+:Version: 1.0
+"""
+import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 
 import torch.multiprocessing as mp
@@ -29,7 +35,7 @@ if __name__ == '__main__':
     model_env_name = config.get_current_env_name() #"MicroRTSEnv"
     
     # 设置参数
-    model_redis_config = config.get_current_redis_model_config()
+    model_redis_config = config.get_current_redis_MODEL_CONFIG()
     
     #启动日志
     check_log = log.Log("check_main")

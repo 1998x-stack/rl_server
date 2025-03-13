@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+"""
+:Author: XM
+:Coding: UTF-8
+:Version: 1.0
+"""
 import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 
@@ -52,7 +58,7 @@ def get_current_queue_config() -> dict:
     
 
 #模型redis配置信息
-def get_current_redis_model_config() -> dict:
+def get_current_redis_MODEL_CONFIG() -> dict:
     return redis_args_dict_server_linux
 
 #经验redis配置信息

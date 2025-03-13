@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+"""
+:Author: XM
+:Coding: UTF-8
+:Version: 1.0
+"""
+import sys,os
+sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 
 """
 0 启动logger,tensorboardX
@@ -18,8 +26,6 @@ while True
 该文件为独立train_main_sample, 多个sample_main, 带redis 服务器
 
 """
-import sys,os
-sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 
 import argparse
 import trainer_redis
@@ -54,7 +60,7 @@ if __name__ == '__main__':
     
     # 设置参数
     queue_config = config.get_current_queue_config()
-    model_redis_config = config.get_current_redis_model_config()
+    model_redis_config = config.get_current_redis_MODEL_CONFIG()
     
     #梯度队列
     grads_queue = mp.Queue(maxsize=queue_config['len_grads_queue']) 

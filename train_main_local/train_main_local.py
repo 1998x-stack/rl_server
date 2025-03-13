@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+"""
+:Author: XM
+:Coding: UTF-8
+:Version: 1.0
+"""
+import sys,os
+sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 
 """
 0 启动logger,tensorboardX
@@ -19,16 +27,11 @@ while True
 """
 import sys,os
 
-from matplotlib.pyplot import axis
-sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
-
 import argparse
-from tensorboardX import SummaryWriter
 import trainer
 import torch.multiprocessing as mp
 import time
 import numpy as np
-import torch
 import libs.config as config
 import libs.utils as utils
 import libs.log as log

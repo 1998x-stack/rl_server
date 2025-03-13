@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+"""
+:Author: XM
+:Coding: UTF-8
+:Version: 1.0
+"""
 """
 训练体,被 train_main_grad所用
 """

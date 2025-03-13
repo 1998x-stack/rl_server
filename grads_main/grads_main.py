@@ -1,8 +1,13 @@
+# -*- coding: utf-8 -*-
 """
 用于整合 grads 的服务器。
 1 启动logger
 2 启动redis
 3 读取新的梯度信息，累计后更新网络。
+
+:Author: XM
+:Coding: UTF-8
+:Version: 1.0
 """
 import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
@@ -34,7 +39,7 @@ if __name__ == '__main__':
     #运行参数
     queue_config = config.get_current_queue_config()
     grads_redis_config = config.get_current_redis_grads_config()
-    model_redis_config = config.get_current_redis_model_config()
+    model_redis_config = config.get_current_redis_MODEL_CONFIG()
     
     #初始化网络
     grads_net = config.create_net(model_env_name)
