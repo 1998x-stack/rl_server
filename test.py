@@ -49,7 +49,7 @@ class MicroRTSAgent:
         self.model_config = MODEL_CONFIG
         self.sample_net = sample_net
         self.num_envs = MODEL_CONFIG['num_envs']
-        self.num_check_envs = 16
+        self.num_check_single_envs = 16
         self.num_steps = MODEL_CONFIG['num_steps']
         self.action_shape = MODEL_CONFIG['action_shape']
         self.outcomes = deque(maxlen=100)
@@ -66,9 +66,9 @@ class MicroRTSAgent:
             )
         else:
             self.env = self.env = MicroRTSVecEnv(
-                num_envs=self.num_check_envs,
+                num_envs=self.num_check_single_envs,
                 max_steps=5000,
-                ai2s=[microrts_ai.coacAI for _ in range(self.num_check_envs)],
+                ai2s=[microrts_ai.coacAI for _ in range(self.num_check_single_envs)],
                 map_path='maps/10x10/basesWorkers10x10.xml',
                 reward_weight=np.array([10.0, 1.0, 1.0, 0.2, 1.0, 4.0])
             )
@@ -105,7 +105,7 @@ class MicroRTSAgent:
         return action.cpu().numpy(), masks.cpu().numpy(),prob.cpu().numpy()
     
     @torch.no_grad()
-    def get_check_action(self,states, type_masks=None):
+    def _get_single_action(self,states, type_masks=None):
         
         split_logits, _ = self.sample_net(states)
         
@@ -124,7 +124,7 @@ class MicroRTSAgent:
         
         return action.cpu().numpy()
 
-    def sample_env(self,model_dict):
+    def sample_multi_envs(self,model_dict):
         exps=[[] for _ in range(self.num_envs)]
         if self.num_steps>0:
             for _ in range(0, self.num_steps):
@@ -139,7 +139,7 @@ class MicroRTSAgent:
                 self.obs=next_obs
         return exps
 
-    def check_env(self):
+    def check_single_env(self):
         step_record_dict = dict()
         step_record_dict['outcomes'] = 0
         step_record_dict['reward'] = 0
@@ -151,16 +151,16 @@ class MicroRTSAgent:
             self.tmp_states = []
             self.tmp_actions = []
             for _ in range(0, 512):
-                unit_mask = np.array(self.env.vec_client.getUnitLocationMasks()).reshape(self.num_check_envs, -1)
+                unit_mask = np.array(self.env.vec_client.getUnitLocationMasks()).reshape(self.num_check_single_envs, -1)
                 with torch.no_grad():
-                    action = self.get_check_action(states=torch.Tensor(self.obs), type_masks=unit_mask)
+                    action = self._get_single_action(states=torch.Tensor(self.obs), type_masks=unit_mask)
                     self.tmp_states.append(self.obs)
                     self.tmp_actions.append(action.T)
                     
                     next_obs, rs, done, _ = self.env.step(action.T)
                     self.rewards.append(sum(rs) / len(rs))
                     self.total_rewards = self.total_rewards + rs[0]
-                for i in range(self.num_check_envs):
+                for i in range(self.num_check_single_envs):
                     if done[i]:
                         if MicroRTSAgent.get_units_number(11, self.obs, i) > MicroRTSAgent.get_units_number(12, self.obs, i):
                             self.outcomes.append(1)
@@ -180,7 +180,7 @@ class MicroRTSAgent:
     
 agent= MicroRTSAgent(sample_net=train_net, is_checker=True)
     
-agent.check_env()
+agent.check_single_env()
 obs = np.concatenate(agent.states,axis=0)
 act =  np.concatenate(agent.actions,axis=0)
 np.save('obs.npy', obs)

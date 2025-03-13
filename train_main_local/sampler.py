@@ -53,7 +53,7 @@ class Sampler:
                 break
             
             try:                                                    
-                exps_list = sample_agent.sample_env(self.model_dict)
+                exps_list = sample_agent.sample_multi_envs(self.model_dict)
                 
                 if exps_list is not None:
                     #为了兼容多线程环境，这里exps_list必须是轨迹list
@@ -63,7 +63,7 @@ class Sampler:
                         exps_info['exps'] = exps         
                         self.sample_queue.put(exps_info)
                 else:
-                    self.log.log_info("sample_agent.sample_env return None",print_screen=True)
+                    self.log.log_info("sample_agent.sample_multi_envs return None",print_screen=True)
                                                         
                 time.sleep(0)
             

@@ -124,8 +124,6 @@ class DQNGymClassicAgent(AlgoBase.AlgoBaseAgent):
         self.num_envs = MODEL_CONFIG['num_envs']
         self.epsilon = TRAIN_CONFIG['epsilon']
         
-        self.rewards = []
-        
         self.act_dim = TRAIN_ENVS[current_env_name].act_dim
         env_name = TRAIN_ENVS[current_env_name].env_name
         
@@ -137,11 +135,11 @@ class DQNGymClassicAgent(AlgoBase.AlgoBaseAgent):
             self.envs = gym.make(env_name)
             self.states = self.envs.reset()
         
-    def sample_env(self, model_dict): 
+    def sample_multi_envs(self, model_dict):
+        # 采样环境，保存 状态，动作，奖励，是否完成，训练版本号
         exps=[[] for _ in range(self.num_envs)]
-        
         for _ in range(self.num_steps):
-            actions = self.get_sample_actions(self.states)
+            actions = self._get_sample_actions(self.states)
             for i in range(self.num_envs):
                 next_state_n, reward_n, done_n, _ = self.envs[i].step(actions[i])                
                 if done_n:
@@ -152,44 +150,43 @@ class DQNGymClassicAgent(AlgoBase.AlgoBaseAgent):
                 
         return exps
     
-    def check_env(self):
-        
-        steps = 0
-        mus = []
+    def check_single_env(self):
+        # 单一环境或者vectorized环境；
+        actions = []
         rewards = []
         is_done = False
         step_record_dict = dict()
 
         while True:
-            mu = self.get_check_action(self.states)
-            next_state_n, reward_n, is_done, _ = self.envs.step(mu)
+            action = self._get_single_action(self.states)
+            next_state_n, reward_n, is_done, _ = self.envs.step(action)
             if is_done:
                 next_state_n = self.envs.reset()
             self.states = next_state_n
             rewards.append(reward_n)
-            mus.append(mu)
+            actions.append(action)
             
-            steps += 1
             if is_done:
                 break
         
         step_record_dict['sum_rewards'] = np.sum(rewards)
-        step_record_dict['average_mus'] = np.mean(mus)
+        step_record_dict['average_mus'] = np.mean(actions)
         
         return step_record_dict
 
-    @torch.no_grad()
-    def get_sample_actions(self,states):
+    @torch.no_grad() # 此地用到模型推理
+    def _get_sample_actions(self, states):
+        # 采样 epsilon-greedy进行采样
         t_states = torch.Tensor(states)
         if np.random.random() > self.epsilon:
             actions = self.sample_net(t_states)
             actions  = actions.cpu().numpy()
         else:
-            actions = np.random.choice(self.act_dim,size = t_states.shape[0])
+            actions = np.random.choice(self.act_dim, size = t_states.shape[0])
         return actions
     
     @torch.no_grad()
-    def get_check_action(self,state):
+    def _get_single_action(self, state):
         action = self.sample_net(torch.Tensor(state))
         action  = action.cpu().numpy()
         return action
@@ -197,30 +194,31 @@ class DQNGymClassicAgent(AlgoBase.AlgoBaseAgent):
  
 class DQNGymClassicCalculate(AlgoBase.AlgoBaseCalculate):
     
-    def __init__(self,share_model: DQNGymClassicNet):
+    def __init__(self, share_model: DQNGymClassicNet):
         super(DQNGymClassicCalculate,self).__init__()
-        self.train_config = TRAIN_CONFIG
-        self.model_config = MODEL_CONFIG 
-        self.share_model = share_model
+        self.train_config = TRAIN_CONFIG #训练设置参数
+        self.model_config = MODEL_CONFIG # 模型设置参数
+        self.share_model = share_model # 主模型，共享参数，版本统一
         self.calculate_net = DQNGymClassicNet()
         self.target_net = DQNGymClassicNet()
         self.exps_buffer = Exps.ExperienceBuffer(capacity=MAX_BUFFER_SIZE)
 
+        self.gamma = self.train_config['gamma']
         self.batch_size = TRAIN_CONFIG['batch_size']
-        self.version_diff = 10
+        self.version_diff = 10 # 10版本迭代后，目标网络同步主模型
         self.num_repeat = 64
         self.update_version = 0
         
+        
     def generate_grads(self, samples, model_dict):
         
-        gamma = self.train_config['gamma']
-        
+        # 从样本中提取状态，动作，奖励和结束状态
         s_states = np.array([s[0] for s in samples])
         s_actions = np.array([s[1] for s in samples])
         s_rewards = np.array([s[2] for s in samples])
-        s_dones = np.array([s for s in samples])
+        s_dones = np.array([s[4] for s in samples])
     
-        for state,action,reward,done,next_state in zip(s_states[:-1],s_actions[:-1],s_rewards[:-1],s_dones[:-1],s_states[1:]):
+        for state, action, reward, done, next_state in zip(s_states[:-1], s_actions[:-1], s_rewards[:-1], s_dones[:-1], s_states[1:]):
             exp = Exps.Experience(state, action, reward, done, next_state)
             self.exps_buffer.append(exp)
         
@@ -228,41 +226,40 @@ class DQNGymClassicCalculate(AlgoBase.AlgoBaseCalculate):
             raise ValueError("exps is not Enough")
             
         self.calculate_net.load_state_dict(self.share_model.state_dict())
-        train_version = model_dict['train_version']
-        
         if self.update_version % self.version_diff == 0:
             self.target_net.load_state_dict(self.calculate_net.state_dict())
         
         self.calculate_net.zero_grad()
-            
+        
         for _ in range(self.num_repeat):
             s_states, s_actions, s_rewards, s_dones, s_next_states = self.exps_buffer.sample(self.batch_size)
             
-            state_v = torch.Tensor(s_states)
-            actions_v = torch.tensor(s_actions)
-            rewards_v = torch.Tensor(s_rewards)
-            next_state_v = torch.Tensor(s_next_states)
+            states_v = torch.Tensor(s_states) # 类型为float32
+            actions_v = torch.tensor(s_actions) # 类型为int64
+            rewards_v = torch.Tensor(s_rewards) # 类型为float32
+            next_states_v = torch.Tensor(s_next_states) # 类型为float32
 
-            q_values: torch.Tensor = self.calculate_net.get_q_values(state_v)
+            q_values: torch.Tensor = self.calculate_net.get_q_values(states_v) # 类型为float32
+            q_values = q_values.gather(1, actions_v.unsqueeze(-1)).squeeze(-1)
             
             with torch.no_grad():
-                next_q_values: torch.Tensor = self.calculate_net.get_q_values(next_state_v)
-                next_q_state_values: torch.Tensor = self.target_net.get_q_values(next_state_v)
-                                
-            q_value = q_values.gather(1, actions_v.unsqueeze(-1)).squeeze(-1)
-            next_q_value = next_q_state_values.gather(1, torch.max(next_q_values, 1)[1].unsqueeze(1)).squeeze(1)
-            next_q_value[s_dones] = 0.0
-            expected_q_value = rewards_v + gamma * next_q_value
+                # 构建目标值，不需要梯度
+                next_q_values: torch.Tensor = self.calculate_net.get_q_values(next_states_v) # 类型为float32
+                expected_actions = torch.max(next_q_values, 1)[1]
+                target_next_q_values: torch.Tensor = self.target_net.get_q_values(next_states_v) # 类型为float32
+                target_next_q_values = target_next_q_values.gather(1, expected_actions.unsqueeze(1)).squeeze(1)
+                target_next_q_values[s_dones] = 0.0 # 如果处于结束状态，重置为0
+                expected_q_values = rewards_v + self.gamma * target_next_q_values
             
-            loss = F.mse_loss(q_value,expected_q_value)/self.num_repeat
-            
+            loss = F.mse_loss(q_values, expected_q_values) / self.num_repeat
             loss.backward()
 
+        # 不进行optimizer step操作，而且集合num_repeat下所有梯度，后续在主服务进行step
         grads = [
             param.grad.data.cpu().numpy()
-            if param.grad is not None else None
-            for param in self.calculate_net.parameters()
+                if param.grad is not None else None
+                    for param in self.calculate_net.parameters()
         ]
         self.update_version = self.update_version +1
-
-        return [grads],train_version
+        
+        return [grads], model_dict['train_version']

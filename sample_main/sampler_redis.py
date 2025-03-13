@@ -57,7 +57,7 @@ class SamplerRedis:
             
             try:
                                 
-                exps_list = sample_agent.sample_env(self.model_dict)
+                exps_list = sample_agent.sample_multi_envs(self.model_dict)
                 
                 if exps_list is not None:
                     
@@ -69,7 +69,7 @@ class SamplerRedis:
                         if not push_result:
                             time.sleep(5)
                 else:
-                    self.log.log_info("sample_agent.sample_env return None",print_screen=True)
+                    self.log.log_info("sample_agent.sample_multi_envs return None",print_screen=True)
                                                     
                 time.sleep(0)
             except:

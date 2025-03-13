@@ -142,10 +142,10 @@ class AlgoBaseAgent:
     def __init__(self):
         pass
     
-    def sample_env(self,model_dict):
+    def sample_multi_envs(self, model_dict):
         raise NotImplementedError
     
-    def check_env(self):
+    def check_single_env(self):
         raise NotImplementedError
         
 class AlgoBaseCalculate:
@@ -158,20 +158,39 @@ class AlgoBaseCalculate:
         raise NotImplementedError
     
 class GradCoef(autograd.Function):
-    """梯度传播操作
-    ctx：上下文对象，用于在前向和反向传播中传递信息
-    coeff： 梯度缩放系数
+    """
+    A custom autograd function to scale gradients during backpropagation.
+    This function allows you to scale the gradients by a specified coefficient
+    during the backward pass, while leaving the forward pass unchanged.
+    Methods
+    -------
+    forward(ctx, x, coeff)
+        Performs the forward pass of the function. Stores the coefficient in the context.
+    backward(ctx, grad_output)
+        Performs the backward pass of the function. Scales the gradient by the stored coefficient.
+    Parameters
+    ----------
+    ctx : autograd.Function
+        The context object that can be used to stash information for backward computation.
+    x : torch.Tensor
+        The input tensor.
+    coeff : float
+        The coefficient by which to scale the gradients during the backward pass.
+    Returns
+    -------
+    torch.Tensor
+        The output tensor, which is a view of the input tensor.
     """
     # 模型前向
     @staticmethod
-    def forward(ctx, x, coeff):
+    def forward(ctx: autograd.Function, x: torch.Tensor, coeff: float):
         # 将coeff存为ctx的成员变量           
         ctx.coeff = coeff
         return x.view_as(x)
 
     # 模型梯度反传
     @staticmethod
-    def backward(ctx, grad_output):
+    def backward(ctx: autograd.Function, grad_output: torch.Tensor):
         # backward的输出个数，应与forward的输入个数相同
         # 此处coeff不需要梯度，因此返回None    
         return ctx.coeff * grad_output, None

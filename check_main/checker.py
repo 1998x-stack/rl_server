@@ -50,7 +50,7 @@ class Checker:
                 check_net.train(False)         
                 self.self_version=self.model_dict['train_version']
                 
-                infos = check_agent.check_env()
+                infos = check_agent.check_single_env()
                 
                 if isinstance(infos,dict):
                     for (key,value) in  infos.items():

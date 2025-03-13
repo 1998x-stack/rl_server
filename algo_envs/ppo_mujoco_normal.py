@@ -144,7 +144,7 @@ class MujocoNormalAgent(AlgoBase.AlgoBaseAgent):
         self.device = MODEL_CONFIG['device']
         self.num_steps = MODEL_CONFIG['num_steps']
         self.num_envs = MODEL_CONFIG['num_envs']
-        self.rewards = []
+        
         
         env_name = TRAIN_ENVS[current_env_name].env_name
     
@@ -156,13 +156,13 @@ class MujocoNormalAgent(AlgoBase.AlgoBaseAgent):
             self.envs = gym.make(env_name)
             self.states = self.envs.reset()
         
-    def sample_env(self,model_dict):
+    def sample_multi_envs(self,model_dict):
 
         exps=[[] for _ in range(self.num_envs)]
 
         for _ in range(self.num_steps):
             
-            actions,log_probs = self.get_sample_actions(self.states)
+            actions,log_probs = self._get_sample_actions(self.states)
             for i in range(self.num_envs):
                 # if i == 0:
                 #     self.envs[i].render()
@@ -175,7 +175,7 @@ class MujocoNormalAgent(AlgoBase.AlgoBaseAgent):
                 
         return exps
     
-    def check_env(self):
+    def check_single_env(self):
         step_record_dict = dict()
         
         is_done = False
@@ -186,7 +186,7 @@ class MujocoNormalAgent(AlgoBase.AlgoBaseAgent):
 
         while True:
             #self.envs.render()
-            mu,entropy = self.get_check_action(self.states)
+            mu,entropy = self._get_single_action(self.states)
             next_state_n, reward_n, is_done, _ = self.envs.step(mu)
             if is_done:
                 next_state_n = self.envs.reset()
@@ -208,13 +208,13 @@ class MujocoNormalAgent(AlgoBase.AlgoBaseAgent):
         return step_record_dict
             
     @torch.no_grad()
-    def get_sample_actions(self,states):
+    def _get_sample_actions(self,states):
         states_v = torch.Tensor(np.array(states))
         actions,log_probs = self.sample_net.get_sample_data(states_v)
         return actions.cpu().numpy(),log_probs.cpu().numpy()
     
     @torch.no_grad()
-    def get_check_action(self,state):
+    def _get_single_action(self,state):
         state_v = torch.Tensor(np.array(state))
         mu,entropy = self.sample_net.get_check_data(state_v)
         return mu.cpu().numpy(),entropy.cpu().numpy()

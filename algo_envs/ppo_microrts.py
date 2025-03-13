@@ -9,11 +9,15 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 
 import torch 
 import torch.nn as nn
-from gym_microrts.envs.vec_env import MicroRTSVecEnv
-from gym_microrts import microrts_ai
-from collections import deque
-import numpy as np
 from torch.distributions.categorical import Categorical
+
+import numpy as np
+from collections import deque
+from typing import Optional, Union
+
+from gym_microrts import microrts_ai
+from gym_microrts.envs.vec_env import MicroRTSVecEnv
+
 import algo_envs.algo_base as AlgoBase
 
 #训练参数
@@ -42,84 +46,185 @@ MODEL_CONFIG['action_shape'] = [100, 6, 4, 4, 4, 4, 7, 49] # 动作空间
 MODEL_CONFIG['device'] = torch.device('cuda:0' if torch.cuda.is_available() and False else 'cpu') # device
 
 
-class CategoricalMasked(Categorical):
-    def __init__(self, probs=None, logits=None, validate_args=None, masks=[], use_gpu = False):
-        self.masks = masks
-        self.device = torch.device('cuda' if torch.cuda.is_available() and use_gpu else 'cpu')
-        if len(self.masks) == 0:
-            super(CategoricalMasked, self).__init__(probs, logits, validate_args)
-        else:
-            self.masks = masks.type(torch.BoolTensor).to(self.device)
-            logits = torch.where(self.masks, logits, torch.tensor(-1e+8).to(self.device))
-            super(CategoricalMasked, self).__init__(probs, logits, validate_args)
 
-    # H = sum(p(x)log(p(x)))
-    def entropy(self):
-        if len(self.masks) == 0:
-            return super(CategoricalMasked, self).entropy()
-        p_log_p = self.logits * self.probs
-        p_log_p = torch.where(self.masks, p_log_p, torch.tensor(0.).to(self.device))
-        return -p_log_p.sum(-1)
+class MaskedCategorical(Categorical):
+    """带动作掩码的分类分布，适用于工业场景下的受限动作选择
     
-    def argmax(self):
-        return torch.argmax(self.logits,dim=-1)
-
-
-class MicroRTSNet(nn.Module):
+    继承自PyTorch的Categorical分布类，通过布尔掩码实现：
+    1. 动态屏蔽无效动作选项
+    2. 支持跨设备计算（CPU/GPU自动切换）
+    3. 优化熵值计算流程
     
-    @staticmethod
-    def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
-        nn.init.orthogonal_(layer.weight, std)
-        nn.init.constant_(layer.bias, bias_const)
-        return layer
+    Attributes:
+        action_masks (torch.Tensor): 动作屏蔽张量，True表示有效动作
+        device (torch.device): 当前计算设备
+    """
+    
+    def __init__(
+        self,
+        logits: Optional[torch.Tensor] = None,
+        probs: Optional[torch.Tensor] = None,
+        action_masks: Optional[torch.Tensor] = None,
+        validate_args: Optional[bool] = None,
+        device: Union[str, torch.device] = 'auto'
+    ):
+        """初始化带掩码的分类分布
+
+        Args:
+            logits: 原始动作logits值 [batch_size, num_actions]
+            probs: 原始动作概率值 [batch_size, num_actions]
+            action_masks: 动作有效性掩码 [batch_size, num_actions]
+            validate_args: 是否验证输入参数有效性
+            device: 指定计算设备 ('auto'自动选择最佳设备)
         
-    @staticmethod
-    def get_device():
-        return MODEL_CONFIG['device']
+        Raises:
+            ValueError: 当logits/probs与掩码形状不匹配时抛出异常
+        """
+        # 设备自动检测逻辑
+        self.device = self._detect_device(device, logits, probs, action_masks)
+        
+        # 输入参数校验
+        self.action_masks = self._process_masks(action_masks)
+        self._validate_input_shapes(logits, probs, self.action_masks)
+        
+        # 应用动作掩码
+        masked_logits = self._apply_action_masks(logits, probs)
+        
+        # 初始化父类
+        super().__init__(logits=masked_logits, probs=None, validate_args=validate_args)
 
+    @classmethod
+    def _detect_device(
+        cls,
+        device: Union[str, torch.device],
+        *tensors: Optional[torch.Tensor]
+    ) -> torch.device:
+        """自动检测最佳计算设备"""
+        if isinstance(device, torch.device):
+            return device
+        if device == 'auto':
+            for t in tensors:
+                if isinstance(t, torch.Tensor):
+                    return t.device
+            return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        return torch.device(device)
+
+    def _process_masks(self, masks: Optional[torch.Tensor]) -> torch.Tensor:
+        """处理动作掩码张量"""
+        if masks is None:
+            return torch.tensor([], device=self.device)
+        return masks.to(self.device).bool()
+
+    def _validate_input_shapes(
+        self,
+        logits: Optional[torch.Tensor],
+        probs: Optional[torch.Tensor],
+        masks: torch.Tensor
+    ) -> None:
+        """验证输入形状一致性"""
+        base_tensor = logits if logits is not None else probs
+        if base_tensor is None:
+            raise ValueError("必须提供logits或probs参数")
+        if masks.ndim != base_tensor.ndim:
+            raise ValueError(
+                f"掩码维度不匹配: 输入维度{base_tensor.shape} vs 掩码维度{masks.shape}"
+            )
+
+    def _apply_action_masks(
+        self,
+        logits: Optional[torch.Tensor],
+        probs: Optional[torch.Tensor]
+    ) -> torch.Tensor:
+        """应用动作掩码到原始输入"""
+        if logits is not None:
+            clamped_logits = logits.to(self.device)
+            return torch.where(
+                self.action_masks,
+                clamped_logits,
+                torch.tensor(-torch.inf, device=self.device)
+            )
+        elif probs is not None:
+            clamped_probs = probs.to(self.device)
+            return torch.where(
+                self.action_masks,
+                torch.log(clamped_probs + 1e-8),
+                torch.tensor(-torch.inf, device=self.device)
+            )
+        else:
+            raise RuntimeError("逻辑分支异常，请检查初始化参数")
+
+    def entropy(self) -> torch.Tensor:
+        """计算有效动作的熵值 (单位：nat)"""
+        if self.action_masks is None:
+            return super().entropy()
+            
+        # 有效动作概率归一化
+        valid_probs = self.probs * self.action_masks
+        valid_probs = valid_probs / valid_probs.sum(-1, keepdim=True)
+        
+        # 熵值计算
+        p_log_p = valid_probs * torch.log(valid_probs + 1e-8)
+        return -p_log_p.nansum(dim=-1)
+
+    def argmax(self) -> torch.Tensor:
+        """返回有效动作中的最大概率索引"""
+        return (self.probs * self.action_masks).argmax(dim=-1)
+
+
+class MicroRTSNet(AlgoBase.AlgoBaseNet):
+    
     def __init__(self):
         super(MicroRTSNet,self).__init__()
         self.device = MODEL_CONFIG['device']
 
         self.network = nn.Sequential(
-            MicroRTSNet.layer_init(nn.Conv2d(27, 16, kernel_size=(3, 3), stride=(2, 2))),
-            nn.ReLU(),
-            MicroRTSNet.layer_init(nn.Conv2d(16, 32, kernel_size=(2, 2))),
-            nn.ReLU(),
-            nn.Flatten(),
-            MicroRTSNet.layer_init(nn.Linear(32 * 3 * 3, 256)),
-            nn.ReLU(), )
+                AlgoBase.layer_init(nn.Conv2d(27, 16, kernel_size=(3, 3), stride=(2, 2))),
+                nn.ReLU(),
+                AlgoBase.layer_init(nn.Conv2d(16, 32, kernel_size=(2, 2))),
+                nn.ReLU(),
+                nn.Flatten(),
+                AlgoBase.layer_init(nn.Linear(32 * 3 * 3, 256)),
+                nn.ReLU(), 
+            )
 
-        self.actor_unit = MicroRTSNet.layer_init(nn.Linear(256, 100), std=0.01)
-        self.actor_type = MicroRTSNet.layer_init(nn.Linear(256, 6), std=0.01)
-        self.actor_move = MicroRTSNet.layer_init(nn.Linear(256, 4), std=0.01)
-        self.actor_harvest = MicroRTSNet.layer_init(nn.Linear(256, 4), std=0.01)
-        self.actor_return = MicroRTSNet.layer_init(nn.Linear(256, 4), std=0.01)
-        self.actor_produce = MicroRTSNet.layer_init(nn.Linear(256, 4), std=0.01)
-        self.actor_produce_type = MicroRTSNet.layer_init(nn.Linear(256, 7), std=0.01)
-        self.actor_attack = MicroRTSNet.layer_init(nn.Linear(256, 49), std=0.01)
-        self.critic = MicroRTSNet.layer_init(nn.Linear(256, 1), std=1)
+        self.actor_unit = AlgoBase.layer_init(nn.Linear(256, 100), std=0.01)
+        self.actor_type = AlgoBase.layer_init(nn.Linear(256, 6), std=0.01)
+        self.actor_move = AlgoBase.layer_init(nn.Linear(256, 4), std=0.01)
+        self.actor_harvest = AlgoBase.layer_init(nn.Linear(256, 4), std=0.01)
+        self.actor_return = AlgoBase.layer_init(nn.Linear(256, 4), std=0.01)
+        self.actor_produce = AlgoBase.layer_init(nn.Linear(256, 4), std=0.01)
+        self.actor_produce_type = AlgoBase.layer_init(nn.Linear(256, 7), std=0.01)
+        self.actor_attack = AlgoBase.layer_init(nn.Linear(256, 49), std=0.01)
+        self.critic = AlgoBase.layer_init(nn.Linear(256, 1), std=1)
+        self.train_optim = torch.optim.Adam(params=self.parameters(), lr=TRAIN_CONFIG['learning_rate'])
 
-    # def forward(self, x: torch.Tensor) -> Tuple(torch.Tensor, torch.Tensor):
     def forward(self, x: torch.Tensor):# -> Tuple(torch.Tensor, torch.Tensor):
         x = x.permute((0, 3, 1, 2))
         obs = self.network(x)
-        return [self.actor_unit(obs), self.actor_type(obs), self.actor_move(obs), self.actor_harvest(obs), self.actor_return(obs), self.actor_produce(obs), self.actor_produce_type(obs), self.actor_attack(obs)], self.critic(obs)
+        return [
+                self.actor_unit(obs), 
+                self.actor_type(obs), 
+                self.actor_move(obs), 
+                self.actor_harvest(obs), 
+                self.actor_return(obs), 
+                self.actor_produce(obs), 
+                self.actor_produce_type(obs), 
+                self.actor_attack(obs)
+            ], self.critic(obs)
  
-    def update_state(self,version,grads_buffer):
-        train_optim = torch.optim.Adam(params=self.parameters(), lr=TRAIN_CONFIG['learning_rate'])
-        train_optim.zero_grad()
+    def update_state(self, version, grads_buffer):
+        self.train_optim.zero_grad()
         #更新网络参数
         for param, grad in zip(self.parameters(), grads_buffer):
             param.grad = torch.FloatTensor(grad).to(MODEL_CONFIG['device'])
-        train_optim.step()
+        self.train_optim.step()
         
-class MicroRTSAgent:
+class MicroRTSAgent(AlgoBase.AlgoBaseAgent):
     def __init__(self,sample_net, is_checker=False):
         self.model_config = MODEL_CONFIG
         self.sample_net = sample_net
         self.num_envs = MODEL_CONFIG['num_envs']
-        self.num_check_envs = 16
+        self.num_check_single_envs = 16
         self.num_steps = MODEL_CONFIG['num_steps']
         self.action_shape = MODEL_CONFIG['action_shape']
         self.outcomes = deque(maxlen=100)
@@ -136,9 +241,9 @@ class MicroRTSAgent:
             )
         else:
             self.env = self.env = MicroRTSVecEnv(
-                num_envs=self.num_check_envs,
+                num_envs=self.num_check_single_envs,
                 max_steps=5000,
-                ai2s=[microrts_ai.coacAI for _ in range(self.num_check_envs)],
+                ai2s=[microrts_ai.coacAI for _ in range(self.num_check_single_envs)],
                 map_path='maps/10x10/basesWorkers10x10.xml',
                 reward_weight=np.array([10.0, 1.0, 1.0, 0.2, 1.0, 4.0])
             )
@@ -175,7 +280,7 @@ class MicroRTSAgent:
         return action.cpu().numpy(), masks.cpu().numpy(),prob.cpu().numpy()
     
     @torch.no_grad()
-    def get_check_action(self,states, type_masks=None):
+    def _get_single_action(self,states, type_masks=None):
         
         split_logits, _ = self.sample_net(states)
         
@@ -194,7 +299,7 @@ class MicroRTSAgent:
         
         return action.cpu().numpy()
 
-    def sample_env(self,model_dict):
+    def sample_multi_envs(self,model_dict):
         exps=[[] for _ in range(self.num_envs)]
         if self.num_steps>0:
             for _ in range(0, self.num_steps):
@@ -209,7 +314,7 @@ class MicroRTSAgent:
                 self.obs=next_obs
         return exps
 
-    def check_env(self):
+    def check_single_env(self):
         step_record_dict = dict()
         step_record_dict['outcomes'] = 0
         step_record_dict['reward'] = 0
@@ -217,13 +322,13 @@ class MicroRTSAgent:
 
 
         for _ in range(0, 512):
-            unit_mask = np.array(self.env.vec_client.getUnitLocationMasks()).reshape(self.num_check_envs, -1)
+            unit_mask = np.array(self.env.vec_client.getUnitLocationMasks()).reshape(self.num_check_single_envs, -1)
             with torch.no_grad():
-                action = self.get_check_action(states=torch.Tensor(self.obs), type_masks=unit_mask)
+                action = self._get_single_action(states=torch.Tensor(self.obs), type_masks=unit_mask)
                 next_obs, rs, done, _ = self.env.step(action.T)
                 self.rewards.append(sum(rs) / len(rs))
                 self.total_rewards = self.total_rewards + rs[0]
-            for i in range(self.num_check_envs):
+            for i in range(self.num_check_single_envs):
                 if done[i]:
                     if MicroRTSAgent.get_units_number(11, self.obs, i) > MicroRTSAgent.get_units_number(12, self.obs, i):
                         self.outcomes.append(1)
@@ -239,7 +344,7 @@ class MicroRTSAgent:
         return step_record_dict
     
     
-class MicroRTSCalculate:
+class MicroRTSCalculate(AlgoBase.AlgoBaseCalculate):
     def __init__(self,share_model):
         self.train_config = TRAIN_CONFIG
         self.model_config = MODEL_CONFIG
@@ -368,6 +473,3 @@ class MicroRTSCalculate:
         max_loss_policy = torch.max(min_loss_policy,max_clip_coef * advantage)
         
         return torch.where(advantage>=0,min_loss_policy,max_loss_policy)
-        
-
-
