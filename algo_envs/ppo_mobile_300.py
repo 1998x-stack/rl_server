@@ -10,9 +10,6 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 import torch
 import torch.nn as nn 
 
-
-
-
 class Mobile300Net(nn.Module):
     def __init__(self):
         super(Mobile300Net,self).__init__()
@@ -125,7 +122,7 @@ class Mobile300Net(nn.Module):
             nn.Linear(feed_hide_dim,feed_hide_dim),
         )
         
-    def forward(self,states):
+    def forward(self, states):
         self_out = self.self_base(states)
         player_heros_out = self.player_heros_base(states)
         enemey_heros_out = self.enemy_heros_base(states)
@@ -154,4 +151,4 @@ if __name__ == "__main__":
     print(train_net)
     import numpy as np
     parameters = sum([np.prod(p.shape) for p in train_net.parameters()])
-    print(train_net,parameters)
+    print(train_net, parameters)

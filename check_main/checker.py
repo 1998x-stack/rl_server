@@ -22,21 +22,21 @@ class Checker:
     def __init__(
                 self,
                 model_dict,
-                share_model: nn.Module,
+                SHARE_MODEL: nn.Module,
                 env_name,
                 log: log.Log
             ) -> None:
     
         self.model_dict = model_dict
-        self.share_model = share_model
-        self.self_version = model_dict['train_version']
+        self.share_model = SHARE_MODEL
+        self.self_version = model_dict['TRAIN_VERSION']
         self.env_name = env_name
         self.log = log
         self.process = None
         self.comment = "checker"
  
     def process_function(self):
-        #设置随机种子
+        # 设置随机种子
         utils.setup_seed()
         check_net = config.create_net(self.env_name)
         check_agent = config.create_agent(self.env_name,check_net,is_checker=True)
@@ -48,7 +48,7 @@ class Checker:
                 
                 check_net.load_state_dict(self.share_model.state_dict())       
                 check_net.train(False)         
-                self.self_version=self.model_dict['train_version']
+                self.self_version=self.model_dict['TRAIN_VERSION']
                 # 在环境中运行，检测此时模型效果
                 infos = check_agent.check_single_env()
                 if isinstance(infos,dict):

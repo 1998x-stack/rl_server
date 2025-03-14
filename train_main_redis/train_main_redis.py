@@ -45,7 +45,7 @@ if __name__ == '__main__':
     # 启动日志
     train_log = log.Log("train_main_redis")
     model_prefix= "train_main_redis"
-    model_env_name = config.get_current_env_name() #"MicroRTSEnv"
+    model_env_name = config.get_current_env_name() # "MicroRTSEnv"
     model_version = None
     # 设置参数
     queue_config = config.get_current_queue_config()
@@ -64,29 +64,29 @@ if __name__ == '__main__':
         train_log.log_info("has no model data and starts a new train", print_screen=True)
         current_train_version = 0
 
-    #当前网络参数版本
+    # 当前网络参数版本
     model_dict = mp.Manager().dict()
     model_dict['is_exit'] = False
-    model_dict['train_version'] = current_train_version
+    model_dict['TRAIN_VERSION'] = current_train_version
 
-    #启动redis
+    # 启动redis
     model_redis_cache = redis_cache.RedisCache(train_log,model_redis_config)
     model_redis_cache.clear_data()
     
-    #清理经验redis
+    # 清理经验redis
     exps_redis_config = config.get_current_redis_exps_config()
     exps_redis_cache = redis_cache.RedisCache(train_log,exps_redis_config)
     exps_redis_cache.clear_data()
     del exps_redis_cache
     
-    #各种训练容器
+    # 各种训练容器
     trainers = []
                   
     for i in range(queue_config['num_trainer']):
         l_trainer = trainer_redis.TrainerRedis(
                                     idx=i,
                                     model_dict=model_dict,
-                                    share_model=train_net,
+                                    SHARE_MODEL=train_net,
                                     grads_queue=grads_queue,
                                     env_name=model_env_name,
                                     log=train_log
@@ -94,7 +94,7 @@ if __name__ == '__main__':
         trainers.append(l_trainer)
         l_trainer.run_trainer_redis()
         
-    #设置采样模型数据
+    # 设置采样模型数据
     model_redis_cache.set_train_version_model(current_train_version,train_net)
         
     train_log.log_info("start run train_main_redis", print_screen=True)
@@ -104,12 +104,12 @@ if __name__ == '__main__':
 
     while True:
         try:
-            #退出检测
+            # 退出检测
             if utils.exit_run():
                 train_log.log_info("start exit train_main_redis", print_screen=True)
-                #保存当前模型版本
+                # 保存当前模型版本
                 utils.save_model_to_file(train_net, f"{model_prefix}_{model_env_name}", current_train_version)
-                #通知sampler服务器退出
+                # 通知sampler服务器退出
                 model_redis_cache.set_exit_flag(1)
                 model_dict['is_exit'] = True
                 for l_trainer in trainers:
@@ -123,7 +123,7 @@ if __name__ == '__main__':
                 # 更新版本
                 current_train_version = current_train_version + 1
                 train_net.update_state(current_train_version,grads_buffer)
-                model_dict['train_version'] = current_train_version
+                model_dict['TRAIN_VERSION'] = current_train_version
                 
                 # 重置梯度
                 grads_count = 0           

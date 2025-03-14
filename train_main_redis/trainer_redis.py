@@ -34,7 +34,7 @@ class TrainerRedis:
     def __init__(self, 
                  idx: int, 
                  model_dict: Dict, 
-                 share_model: nn.Module, 
+                 SHARE_MODEL: nn.Module, 
                  sample_queue: mp.Queue,
                  grads_queue: mp.Queue,
                  env_name: str,
@@ -46,14 +46,14 @@ class TrainerRedis:
         self.env_name = env_name
         
         self.model_dict = model_dict
-        self.share_model = share_model
+        self.share_model = SHARE_MODEL
         
         self.sample_queue = sample_queue
         self.grads_queue = grads_queue
     
-    #进程函数    
+    # 进程函数    
     def process_function(self):
-        #设置随机种子
+        # 设置随机种子
         utils.setup_seed()
            
         calculate = config.create_calculate(self.env_name, self.share_model)
@@ -82,7 +82,7 @@ class TrainerRedis:
             except Exception:
                 self.log.log_exception(print_screen=True)
                 continue
-        #保证退出
+        # 保证退出
         try:
             del exps_redis_cache
         except:

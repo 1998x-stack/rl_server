@@ -31,7 +31,7 @@ class RedisCache:
     exps_name = 'exps'
     exit_flag_name = 'exit'
     
-    train_version_name = 'train_version'
+    train_version_name = 'TRAIN_VERSION'
     train_model_name = 'train_model'
     
     sample_version_name = 'sample_version'
@@ -56,13 +56,13 @@ class RedisCache:
     def __del__(self):
         self.conn.close()
         
-    #是否使用 发布/订阅来解决模型同步问题？ todo by soongxl
+    # 是否使用 发布/订阅来解决模型同步问题？ todo by soongxl
         
-    #清空redis
+    # 清空redis
     def clear_data(self):
         self.conn.flushall()
         
-    #设置退出标志
+    # 设置退出标志
     def set_exit_flag(self, exit_flag: bool):
         try:
             self.conn.set(RedisCache.exit_flag_name,int(exit_flag))
@@ -72,7 +72,7 @@ class RedisCache:
             self.log.log_exception()
             return False
     
-    #获取退出标志
+    # 获取退出标志
     def get_exit_flag(self):
         try:
             exit_flag =  self.conn.get(RedisCache.exit_flag_name)
@@ -85,7 +85,7 @@ class RedisCache:
             self.log.log_exception()
             return None
         
-    #设置训练模型数据
+    # 设置训练模型数据
     def set_train_version_model(self, version: int, model: nn.Module):
         try:
             model_dict = pickle.dumps(model.state_dict(), protocol=pickle.HIGHEST_PROTOCOL)
@@ -98,7 +98,7 @@ class RedisCache:
             self.log.log_exception()
             return False
         
-    #获取训练模型版本
+    # 获取训练模型版本
     def get_train_version(self):
         try:
             version =  self.conn.get(RedisCache.train_version_name)
@@ -111,7 +111,7 @@ class RedisCache:
             self.log.log_exception()
             return None
             
-    #获取训练模型参数
+    # 获取训练模型参数
     def get_train_model(self, model: nn.Module):
         try:
             result=self.conn.get(RedisCache.train_model_name)
@@ -126,7 +126,7 @@ class RedisCache:
             self.log.log_exception()
             return False
                         
-    #压入采样经验    
+    # 压入采样经验    
     def push_exps(self, exps: List, sample_version: int):
         try:
             exps_info = dict()
@@ -141,11 +141,11 @@ class RedisCache:
             self.log.log_exception()
             return False
     
-    #获取采样经验
+    # 获取采样经验
     def pop_exps(self):
         try:
-            #返回为  Tuple(key,value) key 为 RedisCache.exps_name
-            #调用为阻塞模式
+            # 返回为  Tuple(key,value) key 为 RedisCache.exps_name
+            # 调用为阻塞模式
             exps_info = self.conn.brpop(RedisCache.exps_name)
             exps_info = zlib.decompress(exps_info[1])
             exps_info = pickle.loads(exps_info)
@@ -154,7 +154,7 @@ class RedisCache:
             self.log.log_exception()
             return None,None
             
-    #压入梯度信息
+    # 压入梯度信息
     def push_grads(self, grads: List, grads_version: int, sample_version: int):
         try:
             grads_info = dict()
@@ -172,11 +172,11 @@ class RedisCache:
             self.log.log_exception()
             return False
     
-    #获取梯度信息
+    # 获取梯度信息
     def pop_grads(self):
         try:
-            #返回为  Tuple(key,value) key 为 RedisCache.grads_name
-            #调用为阻塞模式
+            # 返回为  Tuple(key,value) key 为 RedisCache.grads_name
+            # 调用为阻塞模式
             grads_info = self.conn.brpop(RedisCache.grads_name)
             grads_info = zlib.decompress(grads_info[1])
             grads_info = pickle.loads(grads_info)

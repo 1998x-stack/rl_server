@@ -18,7 +18,7 @@ from algo_envs.ppo_mujoco_beta_alpha import MujocoBetaAlphaNet,MujocoBetaAlphaAg
 from algo_envs.ppo_mujoco_beta_relative import MujocoBetaRelativeNet,MujocoBetaRelativeAgent,MujocoBetaRelativeCalculate
 
 
-#获取环境名称
+# 获取环境名称
 def get_current_env_name() -> str:
     # return "MujocoNormal"
     # return "MujocoBeta"
@@ -54,24 +54,24 @@ def create_calculate(env_name: str, calculate_net: AlgoBase.AlgoBaseNet) -> Algo
         print("create_calculate error. calculate name is:",calculate_name)
         exit()
 
-#获取队列参数
+# 获取队列参数
 def get_current_queue_config() -> dict:
     return queue_args_dict
 
-#模型redis配置信息
+# 模型redis配置信息
 def get_current_redis_MODEL_CONFIG() -> dict:
     return redis_args_dict_server_linux
 
-#经验redis配置信息
+# 经验redis配置信息
 def get_current_redis_exps_config() -> dict:
     return redis_args_dict_server_linux
 
-#梯度redis配置信息
+# 梯度redis配置信息
 def get_current_redis_grads_config() -> dict:
     return redis_args_dict_server_linux
 
 
-#队列参数
+# 队列参数
 queue_args_dict = dict()
 queue_args_dict['len_grads_queue'] = 1000
 queue_args_dict['len_batch_queue'] = 1000
@@ -84,39 +84,39 @@ queue_args_dict['num_update_grads'] = 1 # 梯度更新数量
 queue_args_dict['version_update_sample_model'] = 1 # 采样模型更新间隔
 queue_args_dict['version_update_calculate_model'] = 1 # 计算模型更新间隔
 
-#redis 参数
+# redis 参数
 redis_args_dict_sxl = dict()
-redis_args_dict_sxl['ip'] = '192.168.1.69' #服务器IP
-redis_args_dict_sxl['port'] = '6379' #服务器端口
-redis_args_dict_sxl['db'] = '0' #服务器db
-redis_args_dict_sxl['pw'] = '123456' #服务器密码
+redis_args_dict_sxl['ip'] = '192.168.1.69' # 服务器IP
+redis_args_dict_sxl['port'] = '6379' # 服务器端口
+redis_args_dict_sxl['db'] = '0' # 服务器db
+redis_args_dict_sxl['pw'] = '123456' # 服务器密码
 
 redis_args_dict_jyz = dict()
-redis_args_dict_jyz['ip'] = '192.168.1.69' #服务器IP
-redis_args_dict_jyz['port'] = '6379' #服务器端口
-redis_args_dict_jyz['db'] = '0' #服务器db
-redis_args_dict_jyz['pw'] = '123456' #服务器密码
+redis_args_dict_jyz['ip'] = '192.168.1.69' # 服务器IP
+redis_args_dict_jyz['port'] = '6379' # 服务器端口
+redis_args_dict_jyz['db'] = '0' # 服务器db
+redis_args_dict_jyz['pw'] = '123456' # 服务器密码
 
 redis_args_dict_xm = dict()
-redis_args_dict_xm['ip'] = '192.168.1.69' #服务器IP
-redis_args_dict_xm['port'] = '6379' #服务器端口
-redis_args_dict_xm['db'] = '0' #服务器db
-redis_args_dict_xm['pw'] = '123456' #服务器密码
+redis_args_dict_xm['ip'] = '192.168.1.69' # 服务器IP
+redis_args_dict_xm['port'] = '6379' # 服务器端口
+redis_args_dict_xm['db'] = '0' # 服务器db
+redis_args_dict_xm['pw'] = '123456' # 服务器密码
 
 redis_args_dict_server_windows = dict()
-redis_args_dict_server_windows['ip'] = '192.168.1.229' #服务器IP
-redis_args_dict_server_windows['port'] = '6379' #服务器端口
-redis_args_dict_server_windows['db'] = '0' #服务器db
-redis_args_dict_server_windows['pw'] = '12345678' #服务器密码
+redis_args_dict_server_windows['ip'] = '192.168.1.229' # 服务器IP
+redis_args_dict_server_windows['port'] = '6379' # 服务器端口
+redis_args_dict_server_windows['db'] = '0' # 服务器db
+redis_args_dict_server_windows['pw'] = '12345678' # 服务器密码
 
 redis_args_dict_server_linux = dict()
-redis_args_dict_server_linux['ip'] = '192.168.12.158' #服务器IP
-redis_args_dict_server_linux['port'] = '6379' #服务器端口
-redis_args_dict_server_linux['db'] = '0' #服务器db
-redis_args_dict_server_linux['pw'] = '12345678' #服务器密码
+redis_args_dict_server_linux['ip'] = '192.168.12.158' # 服务器IP
+redis_args_dict_server_linux['port'] = '6379' # 服务器端口
+redis_args_dict_server_linux['db'] = '0' # 服务器db
+redis_args_dict_server_linux['pw'] = '12345678' # 服务器密码
 
 redis_args_dict_grad = dict()
-redis_args_dict_grad['ip'] = '192.168.1.229' #服务器IP
-redis_args_dict_grad['port'] = '6379' #服务器端口
-redis_args_dict_grad['db'] = '0' #服务器db
-redis_args_dict_grad['pw'] = '12345678' #服务器密码
+redis_args_dict_grad['ip'] = '192.168.1.229' # 服务器IP
+redis_args_dict_grad['port'] = '6379' # 服务器端口
+redis_args_dict_grad['db'] = '0' # 服务器db
+redis_args_dict_grad['pw'] = '12345678' # 服务器密码

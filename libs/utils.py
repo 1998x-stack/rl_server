@@ -62,8 +62,8 @@ def get_model_from_file(
     Returns:
         包含元信息的字典或None
     """
-    #从models文件夹加载模型 prefix 为前缀 local、sample、grad  filename: prefix_version_y_m_d_h_m_s.td(torch.state_dict)
-    #路径为 models/prefix/prefix_version_y_m_d_h_m_s.td
+    # 从models文件夹加载模型 prefix 为前缀 local、sample、grad  filename: prefix_version_y_m_d_h_m_s.td(torch.state_dict)
+    # 路径为 models/prefix/prefix_version_y_m_d_h_m_s.td
     file_path = get_model_state_path(prefix, version)
     if not file_path or not os.path.exists(file_path):
         return None
@@ -134,7 +134,7 @@ def save_model_to_file(
         return None
     
 # start_time = time.time()
-#运行退出
+# 运行退出
 def exit_run(): 
     # if time.time()-start_time > 4*60*60: 
         # return True
@@ -144,7 +144,7 @@ def exit_run():
     else:
         return False
     
-#杀掉进程
+# 杀掉进程
 def kill_process(pid):
     if os.name == 'nt':  # Windows
         cmd = 'taskkill /pid ' + str(pid) + ' /f'  # 强制终止
@@ -160,7 +160,7 @@ def kill_process(pid):
     except Exception as e:
         print(e)
 
-#设置随机种子      
+# 设置随机种子      
 def setup_seed(seed = None):
     if seed is None:
         seed = 1970010101

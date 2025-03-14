@@ -26,10 +26,10 @@ class NoisyLinear(nn.Linear):
         初始化NoisyLinear层。
 
         参数:
-        - in_features: 输入特征的数量。
-        - out_features: 输出特征的数量。
-        - sigma_init: 噪声的初始标准差，默认为0.017。
-        - bias: 是否使用偏置项，默认为True。
+       -in_features: 输入特征的数量。
+       -out_features: 输出特征的数量。
+       -sigma_init: 噪声的初始标准差，默认为0.017。
+       -bias: 是否使用偏置项，默认为True。
         """
         super(NoisyLinear, self).__init__(in_features, out_features, bias=bias) # 继承nn.Linear方法
         
@@ -72,10 +72,10 @@ class NoisyLinear(nn.Linear):
         前向传播函数。
 
         参数:
-        - input: 输入张量。
+       -input: 输入张量。
 
         返回:
-        - 输出张量。
+       -输出张量。
         """
         # 如果不是训练模式，直接调用父类的forward方法
         if not self.training:
@@ -104,13 +104,13 @@ def layer_init(linear_layer: nn.Linear, std: float = np.sqrt(2), bias_const: flo
     初始化线性层的权重和偏置。
 
     参数:
-    - layer (nn.Linear): 需要初始化的线性层。
-    - std (float): 权重初始化的标准差，默认为 $\sqrt{2}$。
-    - bias_const (float): 偏置的初始常数值，默认为 0.0。
-    - method
+   -layer (nn.Linear): 需要初始化的线性层。
+   -std (float): 权重初始化的标准差，默认为 $\sqrt{2}$。
+   -bias_const (float): 偏置的初始常数值，默认为 0.0。
+   -method
 
     返回:
-    - nn.Linear: 初始化后的线性层。
+   -nn.Linear: 初始化后的线性层。
     """
     if method == 'orthogonal':
         nn.init.orthogonal_(linear_layer.weight, std)  # 使用正交初始化权重
@@ -136,7 +136,7 @@ class AlgoBaseNet(nn.Module):
     def update_state(self, version: int, grads_buffer: List):
         raise NotImplementedError
     
-#采样不使用GPU
+# 采样不使用GPU
 class AlgoBaseAgent:
     """RL算法基础的智能体
     """

@@ -38,7 +38,7 @@ if __name__ == '__main__':
     # 设置随机种子
     utils.setup_seed()
     # 环境名称
-    model_env_name = config.get_current_env_name() #"MicroRTSEnv"
+    model_env_name = config.get_current_env_name() # "MicroRTSEnv"
     # 设置参数
     queue_config = config.get_current_queue_config()
     model_redis_config = config.get_current_redis_MODEL_CONFIG()
@@ -52,32 +52,32 @@ if __name__ == '__main__':
     current_train_version = 0
     model_dict = mp.Manager().dict()
     model_dict['is_exit'] = False
-    model_dict['train_version'] = current_train_version
+    model_dict['TRAIN_VERSION'] = current_train_version
         
-    #启动redis
+    # 启动redis
     model_redis_cache = RedisCache(sample_log,model_redis_config)
     
-    #加载初始模型版本
+    # 加载初始模型版本
     while True:
         try:
             new_version = model_redis_cache.get_train_version()
             is_model_updated = model_redis_cache.get_train_model(sample_net)
             if (new_version is not None) and is_model_updated:
                 current_train_version = new_version
-                model_dict['train_version'] = current_train_version
+                model_dict['TRAIN_VERSION'] = current_train_version
                 break
         except:
             sample_log.log_exception(print_screen=True)
             exit()
     
-    #容器
+    # 容器
     samplers = []
     # 实例化Sampler
     for i in range(queue_config['num_sampler']):
         l_sampler = sampler_redis.SamplerRedis(
                                     i,
                                     model_dict=model_dict, 
-                                    share_model=sample_net,
+                                    SHARE_MODEL=sample_net,
                                     env_name=model_env_name,
                                     log=sample_log
                             )
@@ -108,7 +108,7 @@ if __name__ == '__main__':
                 is_model_updated = model_redis_cache.get_train_model(sample_net)
                 if is_model_updated: 
                     current_train_version = new_version
-                    model_dict['train_version'] = current_train_version
+                    model_dict['TRAIN_VERSION'] = current_train_version
 
             time.sleep(0) # ​触发线程重新调度，让步其他线程
         except:

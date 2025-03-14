@@ -28,19 +28,19 @@ class TrainerRedisGrads:
     env_name: 环境名字
     log: 日志
     """
-    def __init__(self, idx,model_dict,share_model,grads_queue,env_name,log:log.Log):
+    def __init__(self, idx, model_dict,SHARE_MODEL,grads_queue,env_name,log:log.Log):
         self.trainer_id = idx
         self.model_dict = model_dict
-        self.share_model = share_model
+        self.share_model = SHARE_MODEL
         self.grads_queue = grads_queue
         self.env_name = env_name
         self.process = None
         self.log = log
     
-    #进程函数    
+    # 进程函数    
     def process_function(self):
 
-        #设置随机种子
+        # 设置随机种子
         utils.setup_seed()
 
         calculate = config.create_calculate(self.env_name,self.share_model)
@@ -72,7 +72,7 @@ class TrainerRedisGrads:
                 self.log.log_exception(print_screen=True)
                 continue
 
-        #保证退出
+        # 保证退出
         try:
             del exps_redis_cache
         except:

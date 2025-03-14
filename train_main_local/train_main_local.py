@@ -36,13 +36,13 @@ import check_main.checker as checker
 if __name__ == '__main__':
     # 设置多进程模式
     utils.setup_mp()
-    #设置随机种子
+    # 设置随机种子
     utils.setup_seed()
-    #启动日志
+    # 启动日志
     train_log = log.Log("train_main_local")
     model_version = None
     model_prefix= "train_main_local"
-    model_env_name = config.get_current_env_name() #"MicroRTSEnv"
+    model_env_name = config.get_current_env_name() # "MicroRTSEnv"
     train_log.log_info("current train algo_env is " + model_env_name, print_screen=True)
     # 设置参数
     queue_config = config.get_current_queue_config()
@@ -64,7 +64,7 @@ if __name__ == '__main__':
     # 退出标志
     model_dict['is_exit'] = False
     # 被训练网络版本
-    model_dict['train_version'] = current_train_version
+    model_dict['TRAIN_VERSION'] = current_train_version
 
     # 各种训练容器
     trainers = []
@@ -76,7 +76,7 @@ if __name__ == '__main__':
         l_trainer = trainer.Trainer(
                                     idx=i, 
                                     model_dict=model_dict,
-                                    share_model=train_net,
+                                    SHARE_MODEL=train_net,
                                     sample_queue=sample_queue,
                                     grads_queue=grads_queue,
                                     env_name=model_env_name,
@@ -90,7 +90,7 @@ if __name__ == '__main__':
         l_sampler = sampler.Sampler(
                                     idx=i, 
                                     model_dict=model_dict,
-                                    share_model=train_net,
+                                    SHARE_MODEL=train_net,
                                     sample_queue=sample_queue,
                                     grads_queue=grads_queue,
                                     env_name=model_env_name,
@@ -103,7 +103,7 @@ if __name__ == '__main__':
     if  queue_config['enable_checker']:
         train_checker = checker.Checker(
                                         model_dict=model_dict,
-                                        share_model=train_net,
+                                        SHARE_MODEL=train_net,
                                         env_name=model_env_name,
                                         log=train_log
                                     )
@@ -117,11 +117,11 @@ if __name__ == '__main__':
     grads_count = 0
     while True:
         try:
-            #退出检测
+            # 退出检测
             if utils.exit_run():
                 utils.save_samples_for_IL()
                 train_log.log_info("start exit train_main_local", print_screen=True)
-                #保存当前模型版本
+                # 保存当前模型版本
                 utils.save_model_to_file(train_net, f"{model_prefix}_{model_env_name}", current_train_version)
                 model_dict['is_exit'] = True
                 
@@ -139,12 +139,12 @@ if __name__ == '__main__':
                 train_log.log_info("end exit train_main_local", print_screen=True)
                 break
                                   
-            #整合梯度
+            # 整合梯度
             if grads_count >= queue_config['num_update_grads']:
-                #更新版本
+                # 更新版本
                 current_train_version = current_train_version + 1
                 train_net.update_state(current_train_version,grads_buffer)
-                model_dict['train_version'] = current_train_version
+                model_dict['TRAIN_VERSION'] = current_train_version
                 
                 grads_count = 0
                 grads_buffer = None

@@ -31,10 +31,10 @@ class Sampler:
     env_name: 环境名称
     log: 日志
     """
-    def __init__(self, idx,model_dict,share_model:nn.Module,sample_queue,env_name,log:log.Log) -> None:
+    def __init__(self, idx, model_dict,SHARE_MODEL:nn.Module,sample_queue,env_name,log:log.Log) -> None:
         self.sampler_id = idx
         self.model_dict = model_dict
-        self.share_model = share_model
+        self.share_model = SHARE_MODEL
         self.env_name = env_name
         self.log = log
         self.sample_queue = sample_queue
@@ -42,7 +42,7 @@ class Sampler:
  
     def process_function(self):
 
-        #设置随机种子
+        # 设置随机种子
         utils.setup_seed()
         sample_agent = config.create_agent(self.env_name, self.share_model)
                 
@@ -54,10 +54,10 @@ class Sampler:
                 exps_list = sample_agent.sample_multi_envs(self.model_dict)
                 
                 if exps_list is not None:
-                    #为了兼容多线程环境，这里exps_list必须是轨迹list
+                    # 为了兼容多线程环境，这里exps_list必须是轨迹list
                     for exps in exps_list:
                         exps_info = dict()
-                        exps_info['sample_version'] = self.model_dict['train_version']
+                        exps_info['sample_version'] = self.model_dict['TRAIN_VERSION']
                         exps_info['exps'] = exps         
                         self.sample_queue.put(exps_info)
                 else:
@@ -65,7 +65,7 @@ class Sampler:
                                                         
                 time.sleep(0) # ​触发线程重新调度，让步其他线程
             
-            #如果队列满了，则需要暂停采样  
+            # 如果队列满了，则需要暂停采样  
             except queue.Full:
                 time.sleep(5)
                 continue
@@ -73,7 +73,7 @@ class Sampler:
                 self.log.log_exception(print_screen=True)
                 continue
             
-        #保证环境退出
+        # 保证环境退出
         try:
             del sample_agent
         except:

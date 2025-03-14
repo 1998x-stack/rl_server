@@ -70,5 +70,5 @@ class EpsilonTracker:
         self.frame(0)
 
     def frame(self, frame: int):
-        eps = self.eps_start - frame / self.eps_frames
+        eps = self.eps_start-frame / self.eps_frames
         self.selector.epsilon = max(self.eps_final, eps)

@@ -37,20 +37,20 @@ class SamplerRedis:
                 self,
                 idx: int,
                 model_dict: Dict,
-                share_model: nn.Module,
+                SHARE_MODEL: nn.Module,
                 env_name: str,
                 log: log.Log
             ) -> None:
         self.sampler_id = idx
         self.model_dict = model_dict
-        self.share_model = share_model
+        self.share_model = SHARE_MODEL
         self.env_name = env_name
         self.log = log
         self.process=None
         
     def process_function(self):
 
-        #设置随机种子
+        # 设置随机种子
         utils.setup_seed() # 用得着一直设置随机种子吗
         sample_agent = config.create_agent(self.env_name,self.share_model)
         exps_redis_config = config.get_current_redis_exps_config()
@@ -63,8 +63,8 @@ class SamplerRedis:
                 exps_list = sample_agent.sample_multi_envs(self.model_dict)
                 if exps_list is not None:
                     for exps in exps_list:
-                        push_result = exps_redis_cache.push_exps(exps, self.model_dict['train_version'])
-                        #如果发送redis失败，则暂时停止采样5秒
+                        push_result = exps_redis_cache.push_exps(exps, self.model_dict['TRAIN_VERSION'])
+                        # 如果发送redis失败，则暂时停止采样5秒
                         if not push_result:
                             time.sleep(5)
                 else:
@@ -74,7 +74,7 @@ class SamplerRedis:
                 self.log.log_exception(print_screen=True)
                 continue
             
-        #保证退出
+        # 保证退出
         try:
             del sample_agent
             del exps_redis_cache

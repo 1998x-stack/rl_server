@@ -1,4 +1,4 @@
-#!/bin/bash
+# !/bin/bash
 
 # 要删除 __pycache__ 文件夹的根目录，默认为当前目录
 ROOT_DIR=${1:-.}

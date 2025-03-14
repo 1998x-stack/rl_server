@@ -13,14 +13,14 @@ import numpy as np
 from torch.distributions.categorical import Categorical
 import algo_envs.algo_base as AlgoBase
  
-#模型及环境 MicroRTSEnv
+# 模型及环境 MicroRTSEnv
 MODEL_CONFIG = dict()
-MODEL_CONFIG['env_name'] = "MicroRTSEnv" #其实用不到,只是为了区别
-MODEL_CONFIG['num_envs'] = 8 # 环境数量 microRTS
-MODEL_CONFIG['num_steps'] = 512 # 一次采样的长度
-MODEL_CONFIG['obs_space'] = (10, 10, 27) # 状态空间 
-MODEL_CONFIG['action_shape'] = [100, 6, 4, 4, 4, 4, 7, 49] # 动作空间
-MODEL_CONFIG['device'] = torch.device('cuda:0' if torch.cuda.is_available() and False else 'cpu') # device
+MODEL_CONFIG['ENV_NAME'] = "MicroRTSEnv" # 其实用不到,只是为了区别
+MODEL_CONFIG['NUM_ENVS'] = 8 # 环境数量 microRTS
+MODEL_CONFIG['NUM_STEPS'] = 512 # 一次采样的长度
+MODEL_CONFIG['OBS_SPACE'] = (10, 10, 27) # 状态空间 
+MODEL_CONFIG['ACTION_SHAPE'] = [100, 6, 4, 4, 4, 4, 7, 49] # 动作空间
+MODEL_CONFIG['DEVICE'] = torch.device('cuda:0' if torch.cuda.is_available() and False else 'cpu') # device
 class CategoricalMasked(Categorical):
     def __init__(self, probs=None, logits=None, validate_args=None, masks=[], use_gpu = False):
         self.masks = masks
@@ -48,10 +48,10 @@ class MicroRTSAgent:
     def __init__(self,sample_net, is_checker=False):
         self.model_config = MODEL_CONFIG
         self.sample_net = sample_net
-        self.num_envs = MODEL_CONFIG['num_envs']
+        self.num_envs = MODEL_CONFIG['NUM_ENVS']
         self.num_check_single_envs = 16
-        self.num_steps = MODEL_CONFIG['num_steps']
-        self.action_shape = MODEL_CONFIG['action_shape']
+        self.num_steps = MODEL_CONFIG['NUM_STEPS']
+        self.action_shape = MODEL_CONFIG['ACTION_SHAPE']
         self.outcomes = deque(maxlen=100)
         self.rewards = deque(maxlen=100)
         self.total_rewards = 0
@@ -75,14 +75,14 @@ class MicroRTSAgent:
         self.obs = self.env.reset()[0]
     
     def __del__(self):
-        #del self.env
+        # del self.env
         pass
         
     def get_units_number(unit_type, bef_obs, ind_obs):
         return int(bef_obs[ind_obs][:, :, unit_type].sum())
 
     @torch.no_grad()
-    def get_action(self,states, type_masks=None):
+    def get_action(self, states, type_masks=None):
         
         split_logits, _ = self.sample_net(states)
         
@@ -105,7 +105,7 @@ class MicroRTSAgent:
         return action.cpu().numpy(), masks.cpu().numpy(),prob.cpu().numpy()
     
     @torch.no_grad()
-    def _get_single_action(self,states, type_masks=None):
+    def _get_single_action(self, states, type_masks=None):
         
         split_logits, _ = self.sample_net(states)
         
@@ -124,18 +124,18 @@ class MicroRTSAgent:
         
         return action.cpu().numpy()
 
-    def sample_multi_envs(self,model_dict):
+    def sample_multi_envs(self, model_dict):
         exps=[[] for _ in range(self.num_envs)]
         if self.num_steps>0:
             for _ in range(0, self.num_steps):
                 self.steps = self.steps + 1
-                #self.env.env.render()
+                # self.env.env.render()
                 unit_mask = np.array(self.env.vec_client.getUnitLocationMasks()).reshape(self.num_envs, -1)
                 with torch.no_grad():
                     action,mask,prob=self.get_action(states=torch.Tensor(self.obs), type_masks=unit_mask)
                     next_obs, rs, done, truncated, _ = self.env.step(action.T)
                     for i in range(self.num_envs):
-                        exps[i].append([self.obs[i],action.T[i],rs[i],mask[i],done[i],prob.T[i],model_dict['train_version']])
+                        exps[i].append([self.obs[i],action.T[i],rs[i],mask[i],done[i],prob.T[i], model_dict['TRAIN_VERSION']])
                 self.obs=next_obs
         return exps
 

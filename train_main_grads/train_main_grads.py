@@ -38,37 +38,37 @@ if __name__ == '__main__':
 
     # 设置多进程模式
     utils.setup_mp()
-    #设置随机种子
+    # 设置随机种子
     utils.setup_seed()
     
-    #启动日志
+    # 启动日志
     train_log = log.Log("train_main_grad")
     model_prefix= "train_main_grad"
-    model_env_name = config.get_current_env_name() #"MicroRTSEnv"
+    model_env_name = config.get_current_env_name() # "MicroRTSEnv"
     
     # 设置参数
     queue_config = config.get_current_queue_config()
     model_redis_config = config.get_current_redis_MODEL_CONFIG()
     grads_redis_config = config.get_current_redis_grads_config()
     
-    #梯度队列
+    # 梯度队列
     grads_queue = mp.Queue(maxsize=queue_config['len_grads_queue']) 
         
-    #梯度整合网络
+    # 梯度整合网络
     train_net = config.create_net(model_env_name)  
     train_net.share_memory()
 
-    #当前网络参数版本
+    # 当前网络参数版本
     current_train_version = 0
     model_dict = mp.Manager().dict()
     model_dict['is_exit'] = False
-    model_dict['train_version'] = current_train_version
+    model_dict['TRAIN_VERSION'] = current_train_version
     
-    #启动redis
+    # 启动redis
     model_redis_cache = redis_cache.RedisCache(train_log,model_redis_config)
     grads_redis_cache = redis_cache.RedisCache(train_log,grads_redis_config)
     
-    #清理经验redis
+    # 清理经验redis
     exps_redis_config = config.get_current_redis_exps_config()
     exps_redis_cache = redis_cache.RedisCache(train_log,exps_redis_config)
     exps_redis_cache.clear_data()
@@ -81,7 +81,7 @@ if __name__ == '__main__':
             is_model_updated = model_redis_cache.get_train_model(train_net)
             if (new_version is not None) and is_model_updated:
                 current_train_version = new_version
-                model_dict['train_version'] = current_train_version
+                model_dict['TRAIN_VERSION'] = current_train_version
                 break
         except:
             train_log.log_exception(print_screen=True)
@@ -95,7 +95,7 @@ if __name__ == '__main__':
         l_trainer = trainer_redis_grads.TrainerRedisGrads(
                                                         idx=i,
                                                         model_dict=model_dict,
-                                                        share_model=train_net,
+                                                        SHARE_MODEL=train_net,
                                                         grads_queue=grads_queue,
                                                         env_name=model_env_name,
                                                         log=train_log,
@@ -163,7 +163,7 @@ if __name__ == '__main__':
                 is_model_updated = model_redis_cache.get_train_model(train_net)
                 if is_model_updated: 
                     current_train_version = new_version
-                    model_dict['train_version'] = current_train_version
+                    model_dict['TRAIN_VERSION'] = current_train_version
   
             time.sleep(0) # ​触发线程重新调度，让步其他线程
         
