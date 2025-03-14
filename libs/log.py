@@ -27,7 +27,7 @@ class Log:
         except:
             print("create log dir: "+ self.dir_name + " error")
     
-    def log_info(self,message:str,print_screen:bool=False):
+    def log_info(self,message:str, print_screen:bool=False):
         #检测文件是否存在
         file_name = self.dir_name + "/" + time.strftime("%Y-%m-%d", time.localtime()) + ".log"
         message = time.strftime("%Y-%m-%d %H:%M:%S ", time.localtime()) + message
@@ -45,8 +45,8 @@ class Log:
             fa.close()
 
     #异常日志
-    def log_exception(self,print_screen:bool=False):
+    def log_exception(self, print_screen: bool=False):
         exc_type, exc_value, exc_traceback = sys.exc_info()
         error = "Exception: " + repr(traceback.format_exception(exc_type, exc_value, exc_traceback))  # 将异常信息转为字符串
-        self.log_info(error,print_screen)
+        self.log_info(error, print_screen)
     

@@ -13,6 +13,7 @@ import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.autograd as autograd
+from typing import Dict, List
 
 class NoisyLinear(nn.Linear):
     """
@@ -20,7 +21,7 @@ class NoisyLinear(nn.Linear):
     该层在训练时会在权重和偏置上添加噪声，以增加模型的探索能力。
     """
     
-    def __init__(self, in_features, out_features, sigma_init=0.017, bias=True):
+    def __init__(self, in_features: int, out_features: int, sigma_init: float=0.017, bias: bool=True):
         """
         初始化NoisyLinear层。
 
@@ -66,7 +67,7 @@ class NoisyLinear(nn.Linear):
         if self.bias is not None:
             self.bias.data.uniform_(-std, std)
 
-    def forward(self, input):
+    def forward(self, input: torch.Tensor):
         """
         前向传播函数。
 
@@ -132,7 +133,7 @@ class AlgoBaseNet(nn.Module):
     def forward(self, states):
         raise NotImplementedError
         
-    def update_state(self, version, grads_buffer):
+    def update_state(self, version: int, grads_buffer: List):
         raise NotImplementedError
     
 #采样不使用GPU
@@ -142,7 +143,7 @@ class AlgoBaseAgent:
     def __init__(self):
         pass
     
-    def sample_multi_envs(self, model_dict):
+    def sample_multi_envs(self, model_dict: Dict):
         raise NotImplementedError
     
     def check_single_env(self):
@@ -154,7 +155,7 @@ class AlgoBaseCalculate:
     def __init__(self):
         pass
     
-    def generate_grads(self, samples, model_dict):
+    def generate_grads(self, samples: List, model_dict: Dict):
         raise NotImplementedError
     
 class GradCoef(autograd.Function):

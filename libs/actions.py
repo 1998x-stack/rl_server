@@ -23,7 +23,7 @@ class ArgmaxActionSelector(ActionSelector):
     """
     Selects actions using argmax
     """
-    def __call__(self, scores):
+    def __call__(self, scores: np.ndarray):
         assert isinstance(scores, np.ndarray)
         return np.argmax(scores, axis=1)
 
@@ -33,7 +33,7 @@ class EpsilonGreedyActionSelector(ActionSelector):
         self.epsilon = epsilon
         self.selector = selector if selector is not None else ArgmaxActionSelector()
 
-    def __call__(self, scores):
+    def __call__(self, scores: np.ndarray):
         assert isinstance(scores, np.ndarray)
         batch_size, n_actions = scores.shape
         actions = self.selector(scores)
@@ -47,7 +47,7 @@ class ProbabilityActionSelector(ActionSelector):
     """
     Converts probabilities of actions into action by sampling them
     """
-    def __call__(self, probs):
+    def __call__(self, probs: np.ndarray):
         assert isinstance(probs, np.ndarray)
         actions = []
         for prob in probs:

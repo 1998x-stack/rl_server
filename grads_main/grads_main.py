@@ -44,10 +44,10 @@ if __name__ == '__main__':
     grads_net = config.create_net(model_env_name)
     
     #加载模型数据 
-    current_train_version = utils.get_model_from_file(grads_net,model_prefix + "_" + model_env_name,model_version)
+    current_train_version = utils.get_model_from_file(grads_net,f"{model_prefix}_{model_env_name}",model_version)
     
     if current_train_version is None:
-        grads_log.log_info("has no model data and starts a new train",print_screen=True)
+        grads_log.log_info("has no model data and starts a new train", print_screen=True)
         current_train_version = 0
         
     #启动redis
@@ -60,7 +60,7 @@ if __name__ == '__main__':
     #同步模型数据到redis 分为 train 和 sample
     model_redis_cache.set_train_version_model(current_train_version,grads_net)
 
-    grads_log.log_info("start run grads_main",print_screen=True)
+    grads_log.log_info("start run grads_main", print_screen=True)
     
     grads_buffer = None
     grads_count = 0
@@ -70,10 +70,10 @@ if __name__ == '__main__':
         try:
             #退出检测
             if utils.exit_run():
-                grads_log.log_info("start exit grads_main",print_screen=True)
+                grads_log.log_info("start exit grads_main", print_screen=True)
                 
                 #保存当前模型版本
-                utils.save_model_to_file(grads_net,model_prefix + "_" + model_env_name,current_train_version)
+                utils.save_model_to_file(grads_net,f"{model_prefix}_{model_env_name}",current_train_version)
                 
                 #通知trainer 和 sampler服务器退出
                 model_redis_cache.set_exit_flag(1)
@@ -81,7 +81,7 @@ if __name__ == '__main__':
                 del model_redis_cache
                 del grads_redis_cache
                                                 
-                grads_log.log_info("end exit grads_main",print_screen=True)
+                grads_log.log_info("end exit grads_main", print_screen=True)
                 break
             
             #整合梯度
@@ -108,4 +108,4 @@ if __name__ == '__main__':
         except:
             grads_log.log_exception(print_screen=True)
         
-    grads_log.log_info("exit OK",print_screen=True)
+    grads_log.log_info("exit OK", print_screen=True)

@@ -4,9 +4,6 @@
 :Coding: UTF-8
 :Version: 1.0
 """
-import sys,os
-sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
-
 """
 1 写入 version
 2 写入 model
@@ -18,11 +15,13 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 
-import sys
 import redis
-from libs.log import Log
 import zlib
 import pickle
+import torch.nn as nn
+from typing import Dict, List
+
+from libs.log import Log
 
 
 class RedisCache:
@@ -40,7 +39,7 @@ class RedisCache:
     
     grads_name = 'grads'
 
-    def __init__(self,log:Log,redis_config:dict):
+    def __init__(self,log: Log,redis_config: Dict):
         self.log = log
         self.redis_config = redis_config
         self.conn = redis.Redis(host=self.redis_config['ip'], 
@@ -64,7 +63,7 @@ class RedisCache:
         self.conn.flushall()
         
     #设置退出标志
-    def set_exit_flag(self,exit_flag):
+    def set_exit_flag(self, exit_flag: bool):
         try:
             self.conn.set(RedisCache.exit_flag_name,int(exit_flag))
             return True
@@ -87,12 +86,12 @@ class RedisCache:
             return None
         
     #设置训练模型数据
-    def set_train_version_model(self,version,model):
+    def set_train_version_model(self, version: int, model: nn.Module):
         try:
-            model_dict=pickle.dumps(model.state_dict(),protocol=pickle.HIGHEST_PROTOCOL)
-            model_dict=zlib.compress(model_dict)
-            self.conn.set(RedisCache.train_model_name,model_dict)
-            self.conn.set(RedisCache.train_version_name,int(version))
+            model_dict = pickle.dumps(model.state_dict(), protocol=pickle.HIGHEST_PROTOCOL)
+            model_dict = zlib.compress(model_dict)
+            self.conn.set(RedisCache.train_model_name, model_dict)
+            self.conn.set(RedisCache.train_version_name, int(version))
             return True
         
         except Exception:
@@ -113,7 +112,7 @@ class RedisCache:
             return None
             
     #获取训练模型参数
-    def get_train_model(self,model):
+    def get_train_model(self, model: nn.Module):
         try:
             result=self.conn.get(RedisCache.train_model_name)
             if result is not None:
@@ -128,14 +127,14 @@ class RedisCache:
             return False
                         
     #压入采样经验    
-    def push_exps(self,exps,sample_version):
+    def push_exps(self, exps: List, sample_version: int):
         try:
             exps_info = dict()
-            exps_info['sample_version'] = sample_version
             exps_info['exps'] = exps
-            exps_info = pickle.dumps(exps_info,protocol=pickle.HIGHEST_PROTOCOL)
+            exps_info['sample_version'] = sample_version
+            exps_info = pickle.dumps(exps_info, protocol=pickle.HIGHEST_PROTOCOL)
             exps_info = zlib.compress(exps_info)
-            self.conn.lpush(RedisCache.exps_name,exps_info)  
+            self.conn.lpush(RedisCache.exps_name, exps_info)  
             return True
         
         except Exception: 
@@ -156,15 +155,17 @@ class RedisCache:
             return None,None
             
     #压入梯度信息
-    def push_grads(self,grads,grads_version,sample_version):
+    def push_grads(self, grads: List, grads_version: int, sample_version: int):
         try:
             grads_info = dict()
+            grads_info['grads'] = grads
             grads_info['grads_version'] = grads_version
             grads_info['sample_version'] = sample_version
-            grads_info['grads'] = grads
             grads_info = pickle.dumps(grads_info,protocol=pickle.HIGHEST_PROTOCOL)
+            
             grads_info = zlib.compress(grads_info)
-            self.conn.lpush(RedisCache.grads_name,grads_info)  
+            self.conn.lpush(RedisCache.grads_name,grads_info)
+            
             return True
         
         except Exception: 

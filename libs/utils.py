@@ -9,7 +9,7 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 
 import random
 import torch
-import torch.multiprocessing as mp
+import torch.multiprocessing as mp # 计算密集型，而非IO密集型，GIL
 
 import numpy as np
 from tensorboardX import SummaryWriter
@@ -50,7 +50,7 @@ def get_model_from_file(
     version: Optional[str] = None,
     map_location: Optional[str] = None,
     strict: bool = True
-) -> Optional[Dict]:
+)-> Optional[int]:
     """
     加载模型状态字典
     Args:
@@ -74,7 +74,7 @@ def get_model_from_file(
             raise ValueError("Invalid checkpoint format")
         
         model.load_state_dict(checkpoint['state_dict'], strict=strict)
-        return {k: v for k, v in checkpoint.items() if k != 'state_dict'}
+        return {k: v for k, v in checkpoint.items() if k != 'state_dict'}['version']
     
     except (IOError, RuntimeError, ValueError) as e:
         print(f"Load model failed: {str(e)}")
@@ -164,9 +164,39 @@ def kill_process(pid):
 def setup_seed(seed = None):
     if seed is None:
         seed = 1970010101
-
+    
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     np.random.seed(seed)
     random.seed(seed)
-    torch.backends.cudnn.deterministic = True
+    
+    # 硬件与框架优化设置
+    torch.backends.cudnn.deterministic = True  # 禁用非确定性算法
+    torch.backends.cudnn.benchmark = False     # 关闭自动优化
+    os.environ['PYTHONHASHSEED'] = str(seed)   # 防止哈希随机化，固定 ​Python 解释器的哈希随机化种子，确保字典遍历、集合操作的顺序一致性
+    
+def setup_mp():
+    # 设置多进程模式
+    mp.set_start_method('spawn')  # 强制使用安全的进程创建方式
+    os.environ["OMP_NUM_THREADS"] = "1"  # 避免 OpenMP 线程冲突
+    os.environ["MKL_NUM_THREADS"] = "1"  # 避免 MKL 数学库线程冲突
+    print(f"[DEBUG] 当前启动方法: {mp.get_start_method()}")
+    print(f"[DEBUG] OMP线程数: {os.environ.get('OMP_NUM_THREADS')}")
+    
+
+def save_samples_for_IL(sample_queue: mp.Queue):
+    obs_array = []
+    act_array = []
+    while not sample_queue.empty():
+        samples_info = sample_queue.get()
+        exp_lists = samples_info['exps']
+        for exp in exp_lists:
+            observation = np.expand_dims(exp[0], axis=0)
+            action = np.expand_dims(exp[1], axis=0)
+            obs_array.append(observation)
+            act_array.append(action)
+            
+    obs_array = np.concatenate(obs_array, axis=0)
+    act_array = np.concatenate(act_array, axis=0)
+    np.save('obs.npy', obs_array)
+    np.save('act.npy', act_array)

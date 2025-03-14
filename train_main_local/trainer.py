@@ -4,22 +4,22 @@
 :Coding: UTF-8
 :Version: 1.0
 """
-import sys,os
-sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
-
 """
 训练体
 """
 import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 
-import torch.multiprocessing as mp
+import time, queue
 import numpy as np
-import time
+from typing import Dict
+
+import torch.nn as nn
+import torch.multiprocessing as mp # 计算密集型，而非IO密集型，GIL
+
 import libs.log as log
-import libs.config as config
-import queue
 import libs.utils as utils
+import libs.config as config
 
 class Trainer:
     
@@ -31,42 +31,48 @@ class Trainer:
     env_name: 环境名字
     log: 日志
     """
-    def __init__(self, id,model_dict,share_model,sample_queue,grads_queue,env_name,log:log.Log):
-        self.trainer_id = id
+    def __init__(self, 
+                 idx: int, 
+                 model_dict: Dict, 
+                 share_model: nn.Module, 
+                 sample_queue: mp.Queue,
+                 grads_queue: mp.Queue,
+                 env_name: str,
+                 log:log.Log
+            ):
+        self.log = log
+        self.process = None
+        self.trainer_id = idx
+        self.env_name = env_name
+        
         self.model_dict = model_dict
         self.share_model = share_model
+        
         self.sample_queue = sample_queue
         self.grads_queue = grads_queue
-        self.env_name = env_name
-        self.process = None
-        self.log = log
     
     #进程函数    
     def process_function(self):
-
         #设置随机种子
         utils.setup_seed()
-        
-        calculate = config.create_calculate(self.env_name,self.share_model)
-                
+        calculate = config.create_calculate(self.env_name, self.share_model)
         while True:
             if self.model_dict['is_exit']:
                 break
-            
             try:
-                # 1 取出样本， 2 计算梯度
+                # 1 取出样本
                 samples_info = self.sample_queue.get()
-                                                                                                                                            
-                grads_list,train_version = calculate.generate_grads(samples_info['exps'],self.model_dict)
-            
+                grads_list,train_version = calculate.generate_grads(samples_info['exps'], self.model_dict)
+                
+                # 2 计算梯度
                 for grads in grads_list:
                     grads_info = dict()
+                    grads_info['grads'] = grads
                     grads_info['grads_version'] = train_version
                     grads_info['sample_version'] = samples_info['sample_version']
-                    grads_info['grads'] = grads         
                     self.grads_queue.put(grads_info)
-                                                  
-                time.sleep(0)
+                    
+                time.sleep(0) # ​触发线程重新调度，让步其他线程
             
             except queue.Full:
                 time.sleep(1)
@@ -76,13 +82,12 @@ class Trainer:
             except Exception:
                 self.log.log_exception(print_screen=True)
                 continue
-            
-        self.log.log_info('exit trainer processid ' + str(self.process.pid) + " trainerid " + str(self.trainer_id),print_screen=True)
+        self.log.log_info('exit trainer processid ' + str(self.process.pid) + " trainerid " + str(self.trainer_id), print_screen=True)
                 
     def run_trainer(self):
         self.process = mp.Process(target=self.process_function)
         self.process.start()
-        self.log.log_info('start trainer processid ' + str(self.process.pid) + " trainerid " + str(self.trainer_id),print_screen=True)
+        self.log.log_info('start trainer processid ' + str(self.process.pid) + " trainerid " + str(self.trainer_id), print_screen=True)
         
     def stop(self):
         try:
@@ -91,4 +96,3 @@ class Trainer:
                 self.process.join()
         except:
             self.log.log_exception(print_screen=True)
-        

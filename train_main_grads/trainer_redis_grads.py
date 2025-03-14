@@ -10,7 +10,7 @@
 import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 
-import torch.multiprocessing as mp
+import torch.multiprocessing as mp # 计算密集型，而非IO密集型，GIL
 import time
 import libs.log as log
 import libs.utils as utils
@@ -28,8 +28,8 @@ class TrainerRedisGrads:
     env_name: 环境名字
     log: 日志
     """
-    def __init__(self, id,model_dict,share_model,grads_queue,env_name,log:log.Log):
-        self.trainer_id = id
+    def __init__(self, idx,model_dict,share_model,grads_queue,env_name,log:log.Log):
+        self.trainer_id = idx
         self.model_dict = model_dict
         self.share_model = share_model
         self.grads_queue = grads_queue
@@ -53,11 +53,8 @@ class TrainerRedisGrads:
                 break
             try:
                 samples,exps_version = exps_redis_cache.pop_exps()
-                         
                 if samples is not None:
-                                                                   
                     grads_list,train_version = calculate.generate_grads(samples,self.model_dict)
-                    
                     for grads in grads_list:
                         grads_info = dict()
                         grads_info['grads_version'] = train_version
@@ -65,7 +62,7 @@ class TrainerRedisGrads:
                         grads_info['grads'] = grads         
                         self.grads_queue.put(grads_info)
                           
-                time.sleep(0)
+                time.sleep(0) # ​触发线程重新调度，让步其他线程
                 
             except queue.Full:
                 time.sleep(1)
@@ -81,12 +78,12 @@ class TrainerRedisGrads:
         except:
             self.log.log_exception(print_screen=True)
             
-        self.log.log_info('exit trainer processid ' + str(self.process.pid) + " trainerid " + str(self.trainer_id),print_screen=True)
+        self.log.log_info('exit trainer processid ' + str(self.process.pid) + " trainerid " + str(self.trainer_id), print_screen=True)
                 
     def run_trainer_redis(self):
         self.process = mp.Process(target=self.process_function)
         self.process.start()
-        self.log.log_info('start trainer processid ' + str(self.process.pid) + " trainerid " + str(self.trainer_id),print_screen=True)
+        self.log.log_info('start trainer processid ' + str(self.process.pid) + " trainerid " + str(self.trainer_id), print_screen=True)
         
     def stop(self):
         try:

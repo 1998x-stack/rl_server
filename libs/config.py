@@ -27,7 +27,7 @@ def get_current_env_name() -> str:
     return "DQNGymClassic"
     # return "MicroRTS"
 
-def create_net(env_name) -> AlgoBase.AlgoBaseNet:
+def create_net(env_name: str) -> AlgoBase.AlgoBaseNet:
     net_name = env_name + 'Net'
     try:
         return globals()[net_name]()
@@ -35,7 +35,7 @@ def create_net(env_name) -> AlgoBase.AlgoBaseNet:
         print("create_net error. net name is:",net_name)
         exit()
 
-def create_agent(env_name, sample_net, is_checker = False) -> AlgoBase.AlgoBaseAgent:
+def create_agent(env_name: str, sample_net: AlgoBase.AlgoBaseNet, is_checker: bool = False) -> AlgoBase.AlgoBaseAgent:
     agent_name = env_name + 'Agent'
     try:
         return globals()[agent_name](sample_net, is_checker)
@@ -46,7 +46,7 @@ def create_agent(env_name, sample_net, is_checker = False) -> AlgoBase.AlgoBaseA
             print("create_sample_agent error. agent name is:",agent_name)
         exit()
 
-def create_calculate(env_name, calculate_net) -> AlgoBase.AlgoBaseCalculate:
+def create_calculate(env_name: str, calculate_net: AlgoBase.AlgoBaseNet) -> AlgoBase.AlgoBaseCalculate:
     calculate_name = env_name + 'Calculate'
     try:
         return globals()[calculate_name](calculate_net)

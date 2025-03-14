@@ -14,7 +14,7 @@ import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 
 import torch.nn as nn
-import torch.multiprocessing as mp
+import torch.multiprocessing as mp # 计算密集型，而非IO密集型，GIL
 
 import time
 import queue
@@ -31,8 +31,8 @@ class Sampler:
     env_name: 环境名称
     log: 日志
     """
-    def __init__(self, id,model_dict,share_model:nn.Module,sample_queue,env_name,log:log.Log) -> None:
-        self.sampler_id = id
+    def __init__(self, idx,model_dict,share_model:nn.Module,sample_queue,env_name,log:log.Log) -> None:
+        self.sampler_id = idx
         self.model_dict = model_dict
         self.share_model = share_model
         self.env_name = env_name
@@ -61,9 +61,9 @@ class Sampler:
                         exps_info['exps'] = exps         
                         self.sample_queue.put(exps_info)
                 else:
-                    self.log.log_info("sample_agent.sample_multi_envs return None",print_screen=True)
+                    self.log.log_info("sample_agent.sample_multi_envs return None", print_screen=True)
                                                         
-                time.sleep(0)
+                time.sleep(0) # ​触发线程重新调度，让步其他线程
             
             #如果队列满了，则需要暂停采样  
             except queue.Full:
@@ -79,12 +79,12 @@ class Sampler:
         except:
             self.log.log_exception(print_screen=True)
         
-        self.log.log_info('exit sampler processid ' + str(self.process.pid) + " samplerid " + str(self.sampler_id),print_screen=True)
+        self.log.log_info('exit sampler processid ' + str(self.process.pid) + " samplerid " + str(self.sampler_id), print_screen=True)
                 
     def run_sampler(self):
         self.process=mp.Process(target=self.process_function)
         self.process.start()
-        self.log.log_info('start sampler processid ' + str(self.process.pid) + " samplerid " + str(self.sampler_id),print_screen=True)
+        self.log.log_info('start sampler processid ' + str(self.process.pid) + " samplerid " + str(self.sampler_id), print_screen=True)
 
     def stop(self):
         try:
