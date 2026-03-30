@@ -1,0 +1,15 @@
+redis:
+  model:
+    host: "localhost"
+  exps:
+    host: "localhost"
+  grads:
+    host: "localhost"
+
+training:
+  env_name: "DQNGymClassic"
+  num_samplers: 1
+  num_trainers: 1
+
+logging:
+  level: "DEBUG"
