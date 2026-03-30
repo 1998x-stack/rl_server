@@ -1,2 +1,6 @@
 # -*- coding: utf-8 -*-
-"""rl_server - Distributed RL training system."""
+"""rl_server：分布式强化学习训练框架。
+
+本包提供基于多进程与 Redis 的采样、训练、梯度聚合与模型检查等组件，
+用于在单机或多机环境下协调策略网络与经验数据流。
+"""

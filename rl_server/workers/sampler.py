@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""
-Sampler worker for collecting environment experience.
-Based on train_main_local/sampler.py with updated imports.
+"""Sampler 工作者：在子进程中与环境交互并将经验写入样本队列。
+
+逻辑源自 ``train_main_local/sampler.py``。
 """
 import time
 import queue
@@ -14,12 +14,19 @@ from rl_server.algorithms import create_agent
 
 
 class SamplerWorker:
-    """
-    Sampler worker that runs in a separate process.
-    Collects experience from environments and pushes to sample_queue.
-    """
+    """独立进程采集经验：调用 ``sample_multi_envs`` 并将结果放入 ``sample_queue``。"""
 
     def __init__(self, idx, model_dict, share_model: nn.Module, sample_queue, env_name, log: Log):
+        """构造采样工作者。
+
+        Args:
+            idx: 采样器编号。
+            model_dict: 共享状态，需含 ``is_exit``、``TRAIN_VERSION``。
+            share_model: 与主进程共享的策略网络。
+            sample_queue: 输出队列，元素为含 ``exps`` 与 ``sample_version`` 的字典。
+            env_name: 算法环境名。
+            log: 日志对象。
+        """
         self.sampler_id = idx
         self.model_dict = model_dict
         self.share_model = share_model
@@ -29,6 +36,7 @@ class SamplerWorker:
         self.process = None
 
     def process_function(self):
+        """子进程主循环：采样直至收到退出标志。"""
         setup_seed()
         sample_agent = create_agent(self.env_name, self.share_model)
 
@@ -65,11 +73,13 @@ class SamplerWorker:
         self.log.log_info(f'exit sampler processid {self.process.pid} samplerid {self.sampler_id}')
 
     def run(self):
+        """启动采样子进程。"""
         self.process = mp.Process(target=self.process_function)
         self.process.start()
         self.log.log_info(f'start sampler processid {self.process.pid} samplerid {self.sampler_id}')
 
     def stop(self):
+        """终止采样子进程。"""
         try:
             if self.process is not None:
                 self.process.terminate()

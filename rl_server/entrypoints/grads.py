@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-Gradient aggregation server entrypoint.
-"""
+"""梯度聚合服务入口：读取配置并启动 ``GradsAggregator``。"""
 import os
 import argparse
 
@@ -12,6 +10,11 @@ from rl_server.workers.grads_aggregator import GradsAggregator
 
 
 def parse_args():
+    """解析命令行参数。
+
+    Returns:
+        含 ``config``、``override``、``env_name``、``prefix``。
+    """
     parser = argparse.ArgumentParser(description='RL Server Gradient Aggregation')
     parser.add_argument('--config', type=str, default=None,
                         help='Path to config YAML file')
@@ -25,12 +28,12 @@ def parse_args():
 
 
 def main():
+    """根据 YAML 构造双 Redis 配置并运行聚合主循环。"""
     args = parse_args()
 
     setup_seed()
     setup_signal_handlers()
 
-    # Load config
     config_path = args.config or os.path.join(
         os.path.abspath(os.path.dirname(__file__)), '..', '..', 'config', 'default.yaml'
     )
@@ -41,7 +44,6 @@ def main():
     env_name = args.env_name or config.get('training', {}).get('env_name', 'DQNGymClassic')
     grads_log.log_info(f"Gradient server starting for env: {env_name}")
 
-    # Redis configs
     redis_cfg = config.get('redis', {})
     grads_redis_config = {
         'ip': redis_cfg.get('grads', {}).get('host', 'localhost'),

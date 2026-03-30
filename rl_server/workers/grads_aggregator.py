@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-"""
-Gradient aggregation server.
-Based on grads_main/grads_main.py with updated imports.
-Aggregates gradients from multiple trainers and updates the shared model via Redis.
+"""梯度聚合服务：从 Redis 拉取梯度、累加并更新模型，再广播到模型 Redis。
+
+逻辑源自 ``grads_main/grads_main.py``。
 """
 from rl_server.utils.logging import Log
 from rl_server.utils.process import setup_seed, should_exit
@@ -12,22 +11,34 @@ from rl_server.algorithms import create_net
 
 
 class GradsAggregator:
-    """
-    Gradient aggregation server that collects gradients from Redis,
-    accumulates them, and updates the model.
-    """
+    """维护一份聚合网络，从 ``grads`` Redis 消费梯度，达到批次数后执行 ``update_state`` 并同步到 ``model`` Redis。"""
 
-    def __init__(self, env_name: str, model_prefix: str, grads_redis_config: dict,
-                 model_redis_config: dict, batch_update_count: int = 10, log: Log = None):
+    def __init__(
+        self,
+        env_name: str,
+        model_prefix: str,
+        grads_redis_config: dict,
+        model_redis_config: dict,
+        batch_update_count: int = 10,
+        log: Log = None,
+    ):
+        """初始化聚合器与双 Redis 连接。
+
+        Args:
+            env_name: 用于 ``create_net`` 的环境名。
+            model_prefix: 保存检查点时的文件名前缀组成部分。
+            grads_redis_config: 梯度队列所在 Redis 配置。
+            model_redis_config: 模型广播所在 Redis 配置。
+            batch_update_count: 累计多少条梯度后执行一次参数更新。
+            log: 可选日志；默认新建 ``Log("grads_aggregator")``。
+        """
         self.env_name = env_name
         self.model_prefix = model_prefix
         self.batch_update_count = batch_update_count
         self.log = log or Log("grads_aggregator")
 
-        # Initialize network
         self.grads_net = create_net(env_name)
 
-        # Load existing model if available
         self.current_train_version = load_model(
             self.grads_net, f"{model_prefix}_{env_name}"
         )
@@ -35,18 +46,16 @@ class GradsAggregator:
             self.log.log_info("No existing model data, starting fresh training")
             self.current_train_version = 0
 
-        # Initialize Redis connections
         self.grads_redis = RedisCache(self.log, grads_redis_config)
         self.grads_redis.clear_data()
 
         self.model_redis = RedisCache(self.log, model_redis_config)
         self.model_redis.clear_data()
 
-        # Sync model to Redis
         self.model_redis.set_train_version_model(self.current_train_version, self.grads_net)
 
     def run(self):
-        """Main aggregation loop."""
+        """主循环：聚合梯度、更新模型、响应 ``should_exit()`` 时保存并设置退出标志。"""
         self.log.log_info("Starting gradient aggregation server")
 
         grads_buffer = None
@@ -57,11 +66,9 @@ class GradsAggregator:
                 if should_exit():
                     self.log.log_info("Shutting down gradient aggregation server")
 
-                    # Save current model
                     save_model(self.grads_net, f"{self.model_prefix}_{self.env_name}",
                                str(self.current_train_version))
 
-                    # Notify workers to exit
                     self.model_redis.set_exit_flag(1)
 
                     del self.model_redis
@@ -70,7 +77,6 @@ class GradsAggregator:
                     self.log.log_info("Gradient aggregation server shutdown complete")
                     break
 
-                # Aggregate gradients
                 if grads_count >= self.batch_update_count:
                     self.current_train_version += 1
                     self.grads_net.update_state(self.current_train_version, grads_buffer)

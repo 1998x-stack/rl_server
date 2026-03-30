@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""
-DQN gradient calculator for Gym classic control environments.
-Copied from algo_envs/dqn_gym_classic.py with updated imports.
+"""DQN 梯度计算器：经验回放缓冲、目标网络与 MSE TD 损失。
+
+实现源自 ``algo_envs/dqn_gym_classic.py``。
 """
 import numpy as np
 import torch
@@ -15,6 +15,7 @@ from rl_server.algorithms.dqn.network import (
 
 
 class DQNGymClassicCalculate(AlgoBaseCalculate):
+    """维护在线网、目标网与经验池，从样本生成一步聚合梯度。"""
 
     def __init__(self, SHARE_MODEL: DQNGymClassicNet):
         super(DQNGymClassicCalculate, self).__init__()
@@ -32,7 +33,7 @@ class DQNGymClassicCalculate(AlgoBaseCalculate):
         self.update_version = 0
 
     def generate_grads(self, samples, model_dict):
-
+        """将样本写入经验池，采样若干 minibatch 重复反传，返回 ``[grads]`` 与当前训练版本。"""
         s_states = np.array([s[0] for s in samples])
         s_actions = np.array([s[1] for s in samples])
         s_rewards = np.array([s[2] for s in samples])

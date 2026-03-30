@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-"""
-Structured logging with worker identity.
-Backwards-compatible: Log class interface preserved.
-Copied from libs/log.py.
+"""结构化日志：按进程名写入文件并可选输出到控制台。
+
+接口与历史 ``libs/log.py`` 兼容。
 """
 import os
 import logging
@@ -10,7 +9,15 @@ import sys
 
 
 def setup_logging(dir_name: str, level: str = 'INFO') -> logging.Logger:
-    """Create a logger with both file and console handlers."""
+    """创建带文件与控制台的 ``Logger``。
+
+    Args:
+        dir_name: 日志子目录名（位于项目 ``logs/dir_name`` 下）。
+        level: 日志级别名称，如 ``INFO``、``DEBUG``。
+
+    Returns:
+        配置好的 ``logging.Logger`` 实例。
+    """
     log_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', 'logs', dir_name)
     os.makedirs(log_dir, exist_ok=True)
 
@@ -22,7 +29,6 @@ def setup_logging(dir_name: str, level: str = 'INFO') -> logging.Logger:
             '[%(asctime)s] [%(levelname)s] [%(name)s:%(process)d] %(message)s',
             datefmt='%Y-%m-%d %H:%M:%S'
         )
-        # File handler
         fh = logging.FileHandler(
             os.path.join(log_dir, f'{dir_name}.log'),
             encoding='utf-8'
@@ -30,7 +36,6 @@ def setup_logging(dir_name: str, level: str = 'INFO') -> logging.Logger:
         fh.setFormatter(fmt)
         logger.addHandler(fh)
 
-        # Console handler
         ch = logging.StreamHandler(sys.stdout)
         ch.setFormatter(fmt)
         logger.addHandler(ch)
@@ -39,13 +44,20 @@ def setup_logging(dir_name: str, level: str = 'INFO') -> logging.Logger:
 
 
 class Log:
-    """Backwards-compatible wrapper around Python logging."""
+    """对 ``setup_logging`` 的薄封装，兼容旧代码的 ``log_info`` / ``log_exception`` 调用。"""
 
     def __init__(self, dir_name: str):
+        """初始化日志包装器。
+
+        Args:
+            dir_name: 日志目录与记录器名称。
+        """
         self.logger = setup_logging(dir_name)
 
     def log_info(self, message: str, print_screen: bool = False):
+        """记录 INFO 级别消息（``print_screen`` 保留以兼容旧接口，行为与文件一致）。"""
         self.logger.info(message)
 
     def log_exception(self, print_screen: bool = False):
+        """记录当前异常栈（通常在 ``except`` 块中调用）。"""
         self.logger.exception("Exception occurred")

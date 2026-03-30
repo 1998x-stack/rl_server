@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""
-Trainer worker for computing gradients from experience.
-Based on train_main_local/trainer.py with updated imports.
+"""Trainer 工作者：从队列读取样本批次，计算梯度并写回梯度队列。
+
+逻辑源自 ``train_main_local/trainer.py``，已改用 ``rl_server`` 包内导入。
 """
 import time
 import queue
@@ -16,13 +16,29 @@ from rl_server.algorithms import create_calculate
 
 
 class TrainerWorker:
-    """
-    Trainer worker that runs in a separate process.
-    Consumes samples from sample_queue, computes gradients, and pushes to grads_queue.
-    """
+    """在独立进程中运行：消费 ``sample_queue``，通过 ``create_calculate`` 生成梯度并放入 ``grads_queue``。"""
 
-    def __init__(self, idx: int, model_dict: Dict, share_model: nn.Module,
-                 sample_queue: mp.Queue, grads_queue: mp.Queue, env_name: str, log: Log):
+    def __init__(
+        self,
+        idx: int,
+        model_dict: Dict,
+        share_model: nn.Module,
+        sample_queue: mp.Queue,
+        grads_queue: mp.Queue,
+        env_name: str,
+        log: Log,
+    ):
+        """构造 Trainer 工作者。
+
+        Args:
+            idx: 本 Trainer 实例编号。
+            model_dict: 多进程共享字典，需含 ``is_exit``、``TRAIN_VERSION`` 等。
+            share_model: 与主进程共享内存的策略网络。
+            sample_queue: 样本来源队列。
+            grads_queue: 梯度输出队列。
+            env_name: 算法环境名，用于 ``create_calculate``。
+            log: 日志对象。
+        """
         self.log = log
         self.process = None
         self.trainer_id = idx
@@ -35,6 +51,7 @@ class TrainerWorker:
         self.grads_queue = grads_queue
 
     def process_function(self):
+        """子进程入口：循环直到 ``model_dict['is_exit']``，拉取样本并推送梯度。"""
         setup_seed()
         calculate = create_calculate(self.env_name, self.share_model)
         while True:
@@ -64,11 +81,13 @@ class TrainerWorker:
         self.log.log_info(f'exit trainer processid {self.process.pid} trainerid {self.trainer_id}')
 
     def run(self):
+        """启动子进程并记录 PID。"""
         self.process = mp.Process(target=self.process_function)
         self.process.start()
         self.log.log_info(f'start trainer processid {self.process.pid} trainerid {self.trainer_id}')
 
     def stop(self):
+        """终止子进程并 ``join``。"""
         try:
             if self.process is not None:
                 self.process.terminate()

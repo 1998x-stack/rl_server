@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""
-TD3 (Twin Delayed DDPG) for MuJoCo continuous control environments.
-Copied from algo_envs/td3_mujoco_normal.py with updated imports.
+"""MuJoCo 连续控制上的 TD3：双 Q、延迟策略更新与目标策略平滑。
+
+实现源自 ``algo_envs/td3_mujoco_normal.py``。
 """
 import torch
 import torch.nn as nn
@@ -17,49 +17,49 @@ from rl_server.core.noisy import NoisyLinear
 
 TRAIN_ENVS = {
     'Swimmer': SimpleNamespace(**{
-        'ENV_NAME': "Swimmer-v3",
+        'ENV_NAME': "Swimmer-v4",
         'OBS_DIM': 8,
         'ACT_DIM': 2,
         'HIDDEN_DIM': 32,
         'USE_NOISE': True
     }),
     'HalfCheetah': SimpleNamespace(**{
-        'ENV_NAME': "HalfCheetah-v3",
+        'ENV_NAME': "HalfCheetah-v4",
         'OBS_DIM': 17,
         'ACT_DIM': 6,
         'HIDDEN_DIM': 64,
         'USE_NOISE': True
     }),
     'Ant': SimpleNamespace(**{
-        'ENV_NAME': "Ant-v3",
-        'OBS_DIM': 111,
+        'ENV_NAME': "Ant-v4",
+        'OBS_DIM': 27,
         'ACT_DIM': 8,
         'HIDDEN_DIM': 256,
         'USE_NOISE': True
     }),
     'Hopper': SimpleNamespace(**{
-        'ENV_NAME': "Hopper-v3",
+        'ENV_NAME': "Hopper-v4",
         'OBS_DIM': 11,
         'ACT_DIM': 3,
         'HIDDEN_DIM': 64,
         'USE_NOISE': True
     }),
     'Pusher': SimpleNamespace(**{
-        'ENV_NAME': "Pusher-v2",
+        'ENV_NAME': "Pusher-v5",
         'OBS_DIM': 23,
         'ACT_DIM': 7,
         'HIDDEN_DIM': 128,
         'USE_NOISE': True
     }),
     'Humanoid': SimpleNamespace(**{
-        'ENV_NAME': "Humanoid-v3",
+        'ENV_NAME': "Humanoid-v4",
         'OBS_DIM': 376,
         'ACT_DIM': 17,
         'HIDDEN_DIM': 512,
         'USE_NOISE': True
     }),
     'Walker2d': SimpleNamespace(**{
-        'ENV_NAME': "Walker2d-v3",
+        'ENV_NAME': "Walker2d-v4",
         'OBS_DIM': 17,
         'ACT_DIM': 6,
         'HIDDEN_DIM': 64,
@@ -73,8 +73,8 @@ TRAIN_ENVS = {
         'USE_NOISE': True
     }),
     'Reacher3D': SimpleNamespace(**{
-        'ENV_NAME': "Reacher-v3",
-        'OBS_DIM': 16,
+        'ENV_NAME': "Reacher-v4",
+        'OBS_DIM': 11,
         'ACT_DIM': 2,
         'HIDDEN_DIM': 128,
         'USE_NOISE': True
@@ -94,7 +94,7 @@ TRAIN_ENVS = {
         'USE_NOISE': True
     }),
     'HumanoidStandup': SimpleNamespace(**{
-        'ENV_NAME': "HumanoidStandup-v2",
+        'ENV_NAME': "HumanoidStandup-v4",
         'OBS_DIM': 376,
         'ACT_DIM': 17,
         'HIDDEN_DIM': 512,
@@ -129,6 +129,7 @@ MODEL_CONFIG['MAX_ACTION'] = 1.0
 
 
 class MujocoNormalQNet(AlgoBaseNet):
+    """确定性策略网络 + 双 Q 网络及目标副本（TD3 结构）。"""
 
     def __init__(self):
         super(MujocoNormalQNet, self).__init__()
@@ -239,6 +240,7 @@ class MujocoNormalQNet(AlgoBaseNet):
 
 
 class MujocoNormalQAgent(AlgoBaseAgent):
+    """带探索噪声的确定性策略 rollout 与评估。"""
 
     def __init__(self, sample_net: MujocoNormalQNet, is_checker):
         super(MujocoNormalQAgent, self).__init__()
@@ -319,6 +321,7 @@ Q_REPEAT_TIME = 1
 
 
 class MujocoNormalQCalculate(AlgoBaseCalculate):
+    """TD3 的 Q 与策略损失，周期性软更新目标网络。"""
 
     def __init__(self, SHARE_MODEL: MujocoNormalQNet):
         super(MujocoNormalQCalculate, self).__init__()

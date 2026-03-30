@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-"""
-DQN network for Gym classic control environments.
-Copied from algo_envs/dqn_gym_classic.py with updated imports.
+"""经典 Gym 控制环境的 Dueling DQN 网络定义。
+
+环境维度与隐藏层规模由 ``TRAIN_ENVS`` 与全局 ``current_env_name`` 决定；
+实现源自 ``algo_envs/dqn_gym_classic.py``，已改用 ``rl_server`` 导入。
 """
 import torch
 import torch.nn as nn
@@ -63,7 +64,7 @@ MAX_BUFFER_SIZE = 100000
 
 
 class DQNGymClassicNet(AlgoBaseNet):
-    """Dueling DQN network for Gym classic control environments."""
+    """Dueling 结构：共享骨干 + 状态价值头 + 优势头，输出各动作 Q 值。"""
 
     def __init__(self):
         super(DQNGymClassicNet, self).__init__()
@@ -86,17 +87,20 @@ class DQNGymClassicNet(AlgoBaseNet):
         self.advantage = layer_init(nn.Linear(hide_dim, act_dim))
 
     def get_q_values(self, states):
+        """计算每个动作上的 Q 值（Dueling 分解后还原为 Q(s,a)）。"""
         out = self.network(states)
         advantage = self.advantage(out)
         value = self.value(out)
         return value + advantage - advantage.mean()
 
     def forward(self, states):
+        """贪心动作：返回 Q 最大维度的索引。"""
         q_values = self.get_q_values(states)
         action = torch.argmax(q_values, dim=-1)
         return action
 
     def update_state(self, version, grads_buffer):
+        """用外层聚合的梯度向量执行一步 Adam（用于分布式梯度同步）。"""
         train_optim = torch.optim.Adam(params=self.parameters(), lr=TRAIN_CONFIG['LEARNING_RATE'])
         train_optim.zero_grad()
         for param, grad in zip(self.parameters(), grads_buffer):

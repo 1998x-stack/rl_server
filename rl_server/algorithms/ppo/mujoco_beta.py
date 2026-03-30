@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""
-PPO with Beta distribution for MuJoCo continuous control environments.
-Copied from algo_envs/ppo_mujoco_beta.py with updated imports.
+"""MuJoCo 连续控制上的 PPO：Beta 分布策略（有界动作）与价值网络。
+
+实现源自 ``algo_envs/ppo_mujoco_beta.py``。
 """
 import torch
 import torch.nn as nn
@@ -18,49 +18,49 @@ from rl_server.core.noisy import NoisyLinear, GradCoef
 
 TRAIN_ENVS = {
     'Swimmer': SimpleNamespace(**{
-        'ENV_NAME': "Swimmer-v3",
+        'ENV_NAME': "Swimmer-v4",
         'OBS_DIM': 8,
         'ACT_DIM': 2,
         'HIDDEN_DIM': 32,
         'USE_NOISE': True
     }),
     'HalfCheetah': SimpleNamespace(**{
-        'ENV_NAME': "HalfCheetah-v3",
+        'ENV_NAME': "HalfCheetah-v4",
         'OBS_DIM': 17,
         'ACT_DIM': 6,
         'HIDDEN_DIM': 64,
         'USE_NOISE': True
     }),
     'Ant': SimpleNamespace(**{
-        'ENV_NAME': "Ant-v3",
-        'OBS_DIM': 111,
+        'ENV_NAME': "Ant-v4",
+        'OBS_DIM': 27,
         'ACT_DIM': 8,
         'HIDDEN_DIM': 256,
         'USE_NOISE': True
     }),
     'Hopper': SimpleNamespace(**{
-        'ENV_NAME': "Hopper-v3",
+        'ENV_NAME': "Hopper-v4",
         'OBS_DIM': 11,
         'ACT_DIM': 3,
         'HIDDEN_DIM': 64,
         'USE_NOISE': True
     }),
     'Pusher': SimpleNamespace(**{
-        'ENV_NAME': "Pusher-v2",
+        'ENV_NAME': "Pusher-v5",
         'OBS_DIM': 23,
         'ACT_DIM': 7,
         'HIDDEN_DIM': 128,
         'USE_NOISE': True
     }),
     'Humanoid': SimpleNamespace(**{
-        'ENV_NAME': "Humanoid-v3",
+        'ENV_NAME': "Humanoid-v4",
         'OBS_DIM': 376,
         'ACT_DIM': 17,
         'HIDDEN_DIM': 512,
         'USE_NOISE': True
     }),
     'Walker2d': SimpleNamespace(**{
-        'ENV_NAME': "Walker2d-v3",
+        'ENV_NAME': "Walker2d-v4",
         'OBS_DIM': 17,
         'ACT_DIM': 6,
         'HIDDEN_DIM': 64,
@@ -74,8 +74,8 @@ TRAIN_ENVS = {
         'USE_NOISE': True
     }),
     'Reacher3D': SimpleNamespace(**{
-        'ENV_NAME': "Reacher-v3",
-        'OBS_DIM': 16,
+        'ENV_NAME': "Reacher-v4",
+        'OBS_DIM': 11,
         'ACT_DIM': 2,
         'HIDDEN_DIM': 128,
         'USE_NOISE': True
@@ -95,7 +95,7 @@ TRAIN_ENVS = {
         'USE_NOISE': True
     }),
     'HumanoidStandup': SimpleNamespace(**{
-        'ENV_NAME': "HumanoidStandup-v2",
+        'ENV_NAME': "HumanoidStandup-v4",
         'OBS_DIM': 376,
         'ACT_DIM': 17,
         'HIDDEN_DIM': 512,
@@ -128,6 +128,7 @@ MODEL_CONFIG['MAX_ACTION'] = 1.0
 
 
 class MujocoBetaNet(AlgoBaseNet):
+    """Beta 分布参数化策略与价值头；动作为 [0,1] 再线性映射到环境区间。"""
 
     def __init__(self):
         super(MujocoBetaNet, self).__init__()
@@ -237,6 +238,7 @@ class MujocoBetaNet(AlgoBaseNet):
 
 
 class MujocoBetaAgent(AlgoBaseAgent):
+    """并行环境 rollout 与单环境评估，与 ``MujocoBetaNet`` 配套。"""
 
     def __init__(self, sample_net: MujocoBetaNet, is_checker):
         super(MujocoBetaAgent, self).__init__()
@@ -314,6 +316,7 @@ class MujocoBetaAgent(AlgoBaseAgent):
 
 
 class MujocoBetaCalculate(AlgoBaseCalculate):
+    """PPO 目标下从样本轨迹计算策略/价值梯度。"""
 
     def __init__(self, SHARE_MODEL: MujocoBetaNet):
         super(MujocoBetaCalculate, self).__init__()

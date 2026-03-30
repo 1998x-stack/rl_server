@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""
-DQN agent for Gym classic control environments.
-Copied from algo_envs/dqn_gym_classic.py with updated imports.
+"""经典 Gym 环境的 DQN 智能体：向量环境并行采样与单环境评估。
+
+实现源自 ``algo_envs/dqn_gym_classic.py``。
 """
 import gymnasium as gym
 import numpy as np
@@ -14,7 +14,7 @@ from rl_server.algorithms.dqn.network import (
 
 
 class DQNGymClassicAgent(AlgoBaseAgent):
-    """DQN agent with epsilon-greedy exploration."""
+    """ε-贪心探索；支持多环境 rollout 与 checker 单环境评估。"""
 
     def __init__(self, sample_net: DQNGymClassicNet, is_checker):
         super(DQNGymClassicAgent, self).__init__()
@@ -37,6 +37,7 @@ class DQNGymClassicAgent(AlgoBaseAgent):
             self.states = self.envs.reset()[0]
 
     def sample_multi_envs(self, model_dict):
+        """并行运行 ``NUM_STEPS`` 步，返回每个子环境一条转移序列（含 ``TRAIN_VERSION``）。"""
         exps = [[] for _ in range(self.num_envs)]
         for _ in range(self.num_steps):
             actions = self._get_sample_actions(self.states)
@@ -51,6 +52,7 @@ class DQNGymClassicAgent(AlgoBaseAgent):
         return exps
 
     def check_single_env(self):
+        """单回合直到 ``done``，返回奖励和与动作相关的统计字典。"""
         actions = []
         rewards = []
         is_done = False
@@ -75,6 +77,7 @@ class DQNGymClassicAgent(AlgoBaseAgent):
 
     @torch.no_grad()
     def _get_sample_actions(self, states):
+        """批量状态 -> 贪心或随机动作（训练探索）。"""
         t_states = torch.Tensor(states)
         if np.random.random() > self.epsilon:
             actions = self.sample_net(t_states)
@@ -85,6 +88,7 @@ class DQNGymClassicAgent(AlgoBaseAgent):
 
     @torch.no_grad()
     def _get_single_action(self, state):
+        """单状态贪心动作（标量或向量）。"""
         action = self.sample_net(torch.Tensor(state))
         action = action.cpu().numpy()
         return action

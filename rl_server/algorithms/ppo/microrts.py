@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""
-PPO for MicroRTS environments with masked action spaces.
-Copied from algo_envs/ppo_microrts.py with updated imports.
+"""MicroRTS 上的 PPO：掩码分类分布、向量环境与多段动作空间。
+
+实现源自 ``algo_envs/ppo_microrts.py``。
 """
 import torch
 import torch.nn as nn
@@ -43,7 +43,7 @@ MODEL_CONFIG['DEVICE'] = torch.device('cuda:0' if torch.cuda.is_available() and 
 
 
 class MaskedCategorical(Categorical):
-    """Categorical distribution with action masking for constrained action selection."""
+    """在非法动作上施加 ``-inf`` logits 的分类分布，用于约束策略采样。"""
 
     def __init__(
         self,
@@ -122,6 +122,8 @@ class MaskedCategorical(Categorical):
 
 
 class MicroRTSNet(AlgoBaseNet):
+    """卷积骨干 + 多输出头，对应 MicroRTS 分段动作空间。"""
+
     def __init__(self):
         super(MicroRTSNet, self).__init__()
         self.device = MODEL_CONFIG['DEVICE']
@@ -170,6 +172,8 @@ class MicroRTSNet(AlgoBaseNet):
 
 
 class MicroRTSAgent(AlgoBaseAgent):
+    """``MicroRTSVecEnv`` 上并行 rollout，支持 checker 统计与 TB 风格日志。"""
+
     def __init__(self, sample_net, is_checker=False):
         self.model_config = MODEL_CONFIG
         self.sample_net = sample_net
@@ -306,6 +310,8 @@ class MicroRTSAgent(AlgoBaseAgent):
 
 
 class MicroRTSCalculate(AlgoBaseCalculate):
+    """PPO 多段动作掩码损失与价值损失，支持样本重用与分块 dispatch。"""
+
     def __init__(self, SHARE_MODEL):
         self.train_config = TRAIN_CONFIG
         self.model_config = MODEL_CONFIG

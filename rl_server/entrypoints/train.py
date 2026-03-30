@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""
-Unified training entrypoint for local and Redis modes.
-Based on train_main_local/train_main_local.py with updated imports.
+"""本地多进程训练入口：Trainer / Sampler / Checker 与主进程梯度聚合。
+
+基于 ``train_main_local/train_main_local.py``，统一使用 ``rl_server`` 包内模块。
 """
 import os
 import argparse
@@ -21,6 +21,11 @@ from rl_server.workers.checker import CheckerWorker
 
 
 def parse_args():
+    """解析命令行参数。
+
+    Returns:
+        ``argparse.Namespace``：含 ``config``、``override``、``env_name``、``prefix``、``version``。
+    """
     parser = argparse.ArgumentParser(description='RL Server Training')
     parser.add_argument('--config', type=str, default=None,
                         help='Path to config YAML file')
@@ -36,35 +41,30 @@ def parse_args():
 
 
 def main():
+    """加载配置、启动子进程、在主循环中聚合梯度并处理优雅退出。"""
     args = parse_args()
 
-    # Setup
     setup_mp()
     setup_seed()
     setup_signal_handlers()
 
-    # Load config
     config_path = args.config or os.path.join(
         os.path.abspath(os.path.dirname(__file__)), '..', 'config', 'default.yaml'
     )
-    # Fallback to project root config
     if not os.path.exists(config_path):
         config_path = os.path.join(
             os.path.abspath(os.path.dirname(__file__)), '..', '..', 'config', 'default.yaml'
         )
     config = load_config(config_path, args.override)
 
-    # Logger
     train_log = Log("train_main_local")
 
-    # Environment name
     env_name = args.env_name or config.get('training', {}).get('env_name', 'DQNGymClassic')
     model_prefix = args.prefix
     model_version = args.version
 
     train_log.log_info(f"Current training algo_env is {env_name}")
 
-    # Queue config
     training_cfg = config.get('training', {})
     queues_cfg = config.get('queues', {})
     num_trainers = training_cfg.get('num_trainers', 1)
@@ -72,21 +72,17 @@ def main():
     num_update_grads = training_cfg.get('num_update_grads', 1)
     enable_checker = training_cfg.get('enable_checker', True)
 
-    # Queues
     grads_queue = mp.Queue(maxsize=queues_cfg.get('len_grads_queue', 1000))
     sample_queue = mp.Queue(maxsize=queues_cfg.get('len_sample_queue', 1000))
 
-    # Initialize shared model
     train_net = create_net(env_name)
     train_net.share_memory()
 
-    # Load existing model if available
     current_train_version = load_model(train_net, f"{model_prefix}_{env_name}", model_version)
     if current_train_version is None:
         train_log.log_info("No existing model data, starting fresh training")
         current_train_version = 0
 
-    # Shared state
     model_dict = mp.Manager().dict()
     model_dict['is_exit'] = False
     model_dict['TRAIN_VERSION'] = current_train_version
@@ -94,7 +90,6 @@ def main():
     trainers = []
     samplers = []
 
-    # Start trainers first, then samplers, then checker
     for i in range(num_trainers):
         t = TrainerWorker(
             idx=i,
@@ -153,7 +148,6 @@ def main():
                 train_log.log_info("Shutdown complete")
                 break
 
-            # Aggregate gradients
             if grads_count >= num_update_grads:
                 current_train_version += 1
                 train_net.update_state(current_train_version, grads_buffer)

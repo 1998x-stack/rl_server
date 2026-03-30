@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-Model evaluation entrypoint.
-"""
+"""模型评估入口：加载检查点（可选）并在环境中循环评估，写入 TensorBoard。"""
 import os
 import argparse
 import time
@@ -15,6 +13,11 @@ from rl_server.algorithms import create_net, create_agent
 
 
 def parse_args():
+    """解析命令行参数。
+
+    Returns:
+        含配置路径、环境名、模型前缀、版本与评估回合数等。
+    """
     parser = argparse.ArgumentParser(description='RL Server Model Checker')
     parser.add_argument('--config', type=str, default=None,
                         help='Path to config YAML file')
@@ -32,12 +35,12 @@ def parse_args():
 
 
 def main():
+    """创建检查智能体，可选加载权重，按回合评估直至信号或达到 ``episodes``。"""
     args = parse_args()
 
     setup_seed()
     setup_signal_handlers()
 
-    # Load config
     config_path = args.config or os.path.join(
         os.path.abspath(os.path.dirname(__file__)), '..', '..', 'config', 'default.yaml'
     )
@@ -48,11 +51,9 @@ def main():
     env_name = args.env_name or config.get('training', {}).get('env_name', 'DQNGymClassic')
     check_log.log_info(f"Checker starting for env: {env_name}")
 
-    # Initialize network and agent
     check_net = create_net(env_name)
     check_agent = create_agent(env_name, check_net, is_checker=True)
 
-    # Load model if version specified
     if args.version:
         loaded_version = load_model(check_net, f"{args.prefix}_{env_name}", args.version)
         if loaded_version is None:

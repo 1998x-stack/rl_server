@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""
-Checker worker for model evaluation.
-Based on check_main/checker.py with updated imports.
+"""Checker 工作者：周期性加载共享权重并在环境中评估，写入 TensorBoard。
+
+逻辑源自 ``check_main/checker.py``。
 """
 import time
 import torch.nn as nn
@@ -14,12 +14,17 @@ from rl_server.algorithms import create_net, create_agent
 
 
 class CheckerWorker:
-    """
-    Checker worker that runs in a separate process.
-    Periodically evaluates the model in an environment and logs metrics.
-    """
+    """在独立进程中运行评估智能体，将标量指标记录到 SummaryWriter。"""
 
     def __init__(self, model_dict, share_model: nn.Module, env_name, log: Log):
+        """构造检查进程封装。
+
+        Args:
+            model_dict: 共享字典，需含 ``is_exit``、``TRAIN_VERSION``。
+            share_model: 主训练用的网络（用于同步权重复制到检查用网络）。
+            env_name: 环境/算法名。
+            log: 日志对象。
+        """
         self.model_dict = model_dict
         self.share_model = share_model
         self.self_version = model_dict['TRAIN_VERSION']
@@ -29,6 +34,7 @@ class CheckerWorker:
         self.comment = "checker"
 
     def process_function(self):
+        """子进程：复制权重、评估、写 TB，直到退出。"""
         setup_seed()
         check_net = create_net(self.env_name)
         check_agent = create_agent(self.env_name, check_net, is_checker=True)
@@ -53,6 +59,11 @@ class CheckerWorker:
         self.log.log_info(f'exit checker processid {self.process.pid}')
 
     def run(self, comment: str = None):
+        """启动检查子进程。
+
+        Args:
+            comment: 可选，覆盖 TensorBoard 的 ``comment`` 后缀。
+        """
         if comment is not None:
             self.comment = comment
         self.process = mp.Process(target=self.process_function)
@@ -60,6 +71,7 @@ class CheckerWorker:
         self.log.log_info(f'start checker processid {self.process.pid}')
 
     def stop(self):
+        """终止检查子进程。"""
         try:
             if self.process is not None:
                 self.process.terminate()
