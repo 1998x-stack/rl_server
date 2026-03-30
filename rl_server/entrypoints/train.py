@@ -1,0 +1,184 @@
+# -*- coding: utf-8 -*-
+"""
+Unified training entrypoint for local and Redis modes.
+Based on train_main_local/train_main_local.py with updated imports.
+"""
+import os
+import argparse
+import time
+import queue
+import torch.multiprocessing as mp
+
+from rl_server.utils.logging import Log
+from rl_server.utils.process import setup_mp, setup_seed, should_exit, setup_signal_handlers
+from rl_server.utils.checkpoint import save_model, load_model
+from rl_server.config.loader import load_config
+from rl_server.config.schema import validate_config
+from rl_server.algorithms import create_net
+from rl_server.workers.sampler import SamplerWorker
+from rl_server.workers.trainer import TrainerWorker
+from rl_server.workers.checker import CheckerWorker
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='RL Server Training')
+    parser.add_argument('--config', type=str, default=None,
+                        help='Path to config YAML file')
+    parser.add_argument('--override', type=str, default=None,
+                        help='Path to override config YAML file')
+    parser.add_argument('--env-name', type=str, default=None,
+                        help='Override environment name from config')
+    parser.add_argument('--prefix', type=str, default='train_main_local',
+                        help='Model file prefix')
+    parser.add_argument('--version', type=str, default=None,
+                        help='Model version to load')
+    return parser.parse_args()
+
+
+def main():
+    args = parse_args()
+
+    # Setup
+    setup_mp()
+    setup_seed()
+    setup_signal_handlers()
+
+    # Load config
+    config_path = args.config or os.path.join(
+        os.path.abspath(os.path.dirname(__file__)), '..', 'config', 'default.yaml'
+    )
+    # Fallback to project root config
+    if not os.path.exists(config_path):
+        config_path = os.path.join(
+            os.path.abspath(os.path.dirname(__file__)), '..', '..', 'config', 'default.yaml'
+        )
+    config = load_config(config_path, args.override)
+
+    # Logger
+    train_log = Log("train_main_local")
+
+    # Environment name
+    env_name = args.env_name or config.get('training', {}).get('env_name', 'DQNGymClassic')
+    model_prefix = args.prefix
+    model_version = args.version
+
+    train_log.log_info(f"Current training algo_env is {env_name}")
+
+    # Queue config
+    training_cfg = config.get('training', {})
+    queues_cfg = config.get('queues', {})
+    num_trainers = training_cfg.get('num_trainers', 1)
+    num_samplers = training_cfg.get('num_samplers', 2)
+    num_update_grads = training_cfg.get('num_update_grads', 1)
+    enable_checker = training_cfg.get('enable_checker', True)
+
+    # Queues
+    grads_queue = mp.Queue(maxsize=queues_cfg.get('len_grads_queue', 1000))
+    sample_queue = mp.Queue(maxsize=queues_cfg.get('len_sample_queue', 1000))
+
+    # Initialize shared model
+    train_net = create_net(env_name)
+    train_net.share_memory()
+
+    # Load existing model if available
+    current_train_version = load_model(train_net, f"{model_prefix}_{env_name}", model_version)
+    if current_train_version is None:
+        train_log.log_info("No existing model data, starting fresh training")
+        current_train_version = 0
+
+    # Shared state
+    model_dict = mp.Manager().dict()
+    model_dict['is_exit'] = False
+    model_dict['TRAIN_VERSION'] = current_train_version
+
+    trainers = []
+    samplers = []
+
+    # Start trainers first, then samplers, then checker
+    for i in range(num_trainers):
+        t = TrainerWorker(
+            idx=i,
+            model_dict=model_dict,
+            share_model=train_net,
+            sample_queue=sample_queue,
+            grads_queue=grads_queue,
+            env_name=env_name,
+            log=train_log
+        )
+        trainers.append(t)
+        t.run()
+
+    for i in range(num_samplers):
+        s = SamplerWorker(
+            idx=i,
+            model_dict=model_dict,
+            share_model=train_net,
+            sample_queue=sample_queue,
+            env_name=env_name,
+            log=train_log
+        )
+        samplers.append(s)
+        s.run()
+
+    train_checker = None
+    if enable_checker:
+        train_checker = CheckerWorker(
+            model_dict=model_dict,
+            share_model=train_net,
+            env_name=env_name,
+            log=train_log
+        )
+        train_checker.run("_algo_env_mixed")
+
+    train_log.log_info("Started train_main_local")
+
+    grads_buffer = None
+    grads_count = 0
+
+    while True:
+        try:
+            if should_exit():
+                train_log.log_info("Shutting down train_main_local")
+
+                save_model(train_net, f"{model_prefix}_{env_name}", str(current_train_version))
+                model_dict['is_exit'] = True
+
+                for s in samplers:
+                    s.stop()
+                for t in trainers:
+                    t.stop()
+                if train_checker:
+                    train_checker.stop()
+
+                train_log.log_info("Shutdown complete")
+                break
+
+            # Aggregate gradients
+            if grads_count >= num_update_grads:
+                current_train_version += 1
+                train_net.update_state(current_train_version, grads_buffer)
+                model_dict['TRAIN_VERSION'] = current_train_version
+
+                grads_count = 0
+                grads_buffer = None
+            else:
+                try:
+                    grads_info = grads_queue.get(block=False)
+                    grads_item = grads_info['grads']
+                    grads_count += 1
+                    if grads_buffer is None:
+                        grads_buffer = grads_item
+                    else:
+                        for target_grad, grad in zip(grads_buffer, grads_item):
+                            target_grad += grad
+                except queue.Empty:
+                    pass
+            time.sleep(0)
+        except Exception:
+            train_log.log_exception()
+
+    train_log.log_info("Exit OK")
+
+
+if __name__ == '__main__':
+    main()
