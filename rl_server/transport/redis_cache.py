@@ -57,14 +57,19 @@ class RedisCache:
     def __init__(self, log: Log, redis_config: Dict):
         self.log = log
         self.redis_config = redis_config
-        self.conn = redis.Redis(host=self.redis_config['ip'],
-                                port=self.redis_config['port'],
-                                db=self.redis_config['db'],
-                                password=self.redis_config['pw'])
+        pool_size = int(redis_config.get('pool_size', 10))
+        self.pool = redis.ConnectionPool(
+            host=redis_config['ip'],
+            port=redis_config['port'],
+            db=redis_config['db'],
+            password=redis_config['pw'],
+            max_connections=pool_size
+        )
+        self.conn = redis.Redis(connection_pool=self.pool)
 
         if not self.conn.ping():
-            self.log.log_info("redis connect fail and will exit")
-            exit()
+            self.log.log_info("Redis connect fail, will exit")
+            raise ConnectionError("Cannot connect to Redis")
 
     def __del__(self):
         self.conn.close()

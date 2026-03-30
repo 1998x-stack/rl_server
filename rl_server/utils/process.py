@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 """Process management, signal handling, and seed setup."""
 import os
+import time
 import signal
 import random
+import tempfile
 import threading
 import numpy as np
 import torch
@@ -40,3 +42,21 @@ def setup_mp():
     mp.set_start_method('spawn', force=True)
     os.environ["OMP_NUM_THREADS"] = "1"
     os.environ["MKL_NUM_THREADS"] = "1"
+
+
+HEARTBEAT_DIR = os.path.join(tempfile.gettempdir(), 'rl_server')
+
+
+def write_heartbeat(worker_type: str, worker_id: int):
+    """Write heartbeat file for monitoring."""
+    os.makedirs(HEARTBEAT_DIR, exist_ok=True)
+    path = os.path.join(HEARTBEAT_DIR, f"{worker_type}_{worker_id}_{os.getpid()}")
+    with open(path, 'w') as f:
+        f.write(str(time.time()))
+
+
+def cleanup_heartbeat(worker_type: str, worker_id: int):
+    """Remove heartbeat file on shutdown."""
+    path = os.path.join(HEARTBEAT_DIR, f"{worker_type}_{worker_id}_{os.getpid()}")
+    if os.path.exists(path):
+        os.remove(path)
