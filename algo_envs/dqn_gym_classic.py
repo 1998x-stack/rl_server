@@ -7,7 +7,7 @@
 import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 
-import gym
+import gymnasium as gym
 import numpy as np
 
 import torch

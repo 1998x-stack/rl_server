@@ -5,9 +5,9 @@ Copied from algo_envs/ppo_mujoco_normal.py with updated imports.
 """
 import torch
 import torch.nn as nn
-import gym
+import gymnasium as gym
 import numpy as np
-from gym.spaces.box import Box
+from gymnasium.spaces.box import Box
 from torch.distributions.normal import Normal
 from torch.nn import functional as F
 from types import SimpleNamespace

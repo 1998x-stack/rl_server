@@ -12,8 +12,8 @@ import torch.nn as nn
 from torch.nn import functional as F
 from torch.distributions.beta import Beta
 import numpy as np
-import gym
-from gym.spaces.box import Box
+import gymnasium as gym
+from gymnasium.spaces.box import Box
 from types import SimpleNamespace
 
 import algo_envs.algo_base as AlgoBase

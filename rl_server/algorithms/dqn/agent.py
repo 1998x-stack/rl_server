@@ -3,7 +3,7 @@
 DQN agent for Gym classic control environments.
 Copied from algo_envs/dqn_gym_classic.py with updated imports.
 """
-import gym
+import gymnasium as gym
 import numpy as np
 import torch
 
