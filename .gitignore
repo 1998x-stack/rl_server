@@ -1,5 +1,54 @@
-logs/*
-runs/*
-models/*
+# Byte-compiled / caches
 __pycache__/
 **/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Packaging / build
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE (uncomment if you do not commit editor settings)
+# .idea/
+# .vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project artifacts (training outputs)
+logs/
+runs/
+models/
+
+# Local env / secrets (never commit)
+.env
+.env.*
+!.env.example
+
+# Torch / checkpoints (optional local pattern)
+# *.pt
+# *.pth
+# *.td
