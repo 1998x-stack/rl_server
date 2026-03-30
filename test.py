@@ -1,4 +1,5 @@
-
+# -*- coding: utf-8 -*-
+"""MicroRTS 相关交互式/草稿脚本：掩码 Categorical 与向量环境采样（遗留开发用）。"""
 import libs.config as config
 model_env_name='MicroRTS'
 train_net = config.create_net(model_env_name)

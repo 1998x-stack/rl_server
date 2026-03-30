@@ -1,9 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-:Author: XM
-:Coding: UTF-8
-:Version: 1.0
-"""
+"""遗留检查入口：启动独立 ``checker`` 进程写 TensorBoard（由主训练脚本引用）。"""
 import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 

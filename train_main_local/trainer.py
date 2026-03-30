@@ -1,12 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-:Author: XM
-:Coding: UTF-8
-:Version: 1.0
-"""
-"""
-训练体
-"""
+"""遗留 Trainer 子进程：从样本队列取数据，调用 ``create_calculate`` 生成梯度并写入梯度队列。"""
 import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 

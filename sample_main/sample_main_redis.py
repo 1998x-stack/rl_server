@@ -1,23 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-:Author: XM
-:Coding: UTF-8
-:Version: 1.0
-"""
-"""
-0 启动logger
-1 sample_queue 数据结构
-2 启动redis
-3 读取模型再启动Sampler
-while True
-    5 检测退出
-        join各个进程
-    6 从 sample queue 获取 样本
-    7 发送采样数据到redis
-    8 更新网络到sampler
-
-9 清理退出
-"""
+"""Redis 模式独立采样主程序（遗留）：从模型 Redis 同步权重，将经验推入经验 Redis。"""
 import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 

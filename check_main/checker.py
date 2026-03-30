@@ -1,9 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-:Author: XM
-:Coding: UTF-8
-:Version: 1.0
-"""
+"""遗留 Checker 子进程：周期性评估并记录标量指标。"""
 import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 

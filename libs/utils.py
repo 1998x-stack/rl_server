@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-"""
-:Author: XM
-:Coding: UTF-8
-:Version: 1.0
+"""通用工具：信号、模型读写、随机种子、多进程与模仿学习样本导出。
+
+含遗留 ``exit.cmd`` 退出检测与进程终止封装。
 """
 import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
@@ -22,20 +21,21 @@ _shutdown_event = threading.Event()
 
 
 def setup_signal_handlers():
-    """Install SIGTERM/SIGINT handlers that set the shutdown event."""
+    """注册 SIGTERM/SIGINT，将内部 ``_shutdown_event`` 置位。"""
     def _handler(signum, frame):
         _shutdown_event.set()
     signal.signal(signal.SIGTERM, _handler)
     signal.signal(signal.SIGINT, _handler)
     
 def get_model_state_path(prefix: str, version: Optional[str] = None) -> Optional[str]:
-    """
-    获取模型文件路径
+    """在 ``models/{prefix}/`` 下按前缀与可选版本匹配 ``.td`` 文件，返回最近修改的一条。
+
     Args:
-        prefix: 模型前缀 (e.g. 'local')
-        version: 指定版本号 (None表示最新版本)
+        prefix: 模型前缀目录名。
+        version: 若指定则文件名需以 ``{prefix}_{version}_`` 开头；``None`` 表示取最新。
+
     Returns:
-        完整文件路径或None
+        匹配到的绝对路径；无匹配则为 ``None``。
     """
     # 构造标准化路径
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../models'))
@@ -63,16 +63,17 @@ def get_model_from_file(
     map_location: Optional[str] = None,
     strict: bool = True
 )-> Optional[int]:
-    """
-    加载模型状态字典
+    """从磁盘加载 ``state_dict`` 到 ``model``。
+
     Args:
-        model: 待加载的模型实例
-        prefix: 模型前缀
-        version: 指定版本号
-        map_location: 设备映射 (e.g. 'cuda:0')
-        strict: 是否严格匹配模型结构
+        model: 待加载模块。
+        prefix: 与保存时一致的前缀。
+        version: 可选版本；``None`` 取最新。
+        map_location: ``torch.load`` 设备映射。
+        strict: 是否严格匹配键。
+
     Returns:
-        包含元信息的字典或None
+        检查点中的版本号；失败为 ``None``。
     """
     # 从models文件夹加载模型 prefix 为前缀 local、sample、grad  filename: prefix_version_y_m_d_h_m_s.td(torch.state_dict)
     # 路径为 models/prefix/prefix_version_y_m_d_h_m_s.td
@@ -100,17 +101,18 @@ def save_model_to_file(
     timestamp_format: str = "%Y%m%d%H%M%S",
     max_versions: int = 5
 ) -> Optional[str]:
-    """
-    保存模型状态
+    """将 ``state_dict`` 写入 ``models/{prefix}/`` 并可选裁剪旧文件。
+
     Args:
-        model: 待保存的模型
-        prefix: 模型前缀
-        version: 版本标识符
-        metadata: 附加元信息
-        timestamp_format: 时间戳格式 (None禁用时间戳)
-        max_versions: 最大保留版本数
+        model: 要保存的模块。
+        prefix: 目录与文件名前缀。
+        version: 版本字符串。
+        metadata: 合并进检查点的额外字段。
+        timestamp_format: 时间戳 ``strftime`` 格式；空字符串则文件名不含时间。
+        max_versions: 同一 ``prefix_version`` 下保留的带时间戳文件数量。
+
     Returns:
-        保存的文件路径或None
+        保存路径或 ``None``。
     """
     # 构造保存目录
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../models'))
@@ -146,7 +148,7 @@ def save_model_to_file(
         return None
     
 def exit_run() -> bool:
-    """Check if shutdown was requested (via signal or legacy exit.cmd file)."""
+    """是否应退出：内部 shutdown 事件或项目根目录存在 ``exit.cmd``（兼容旧逻辑）。"""
     if _shutdown_event.is_set():
         return True
     # Legacy fallback: check for exit.cmd file
@@ -155,8 +157,8 @@ def exit_run() -> bool:
         return True
     return False
     
-# 杀掉进程
 def kill_process(pid):
+    """按 PID 终止进程（Windows 用 taskkill，POSIX 用 kill）。"""
     if os.name == 'nt':  # Windows
         cmd = 'taskkill /pid ' + str(pid) + ' /f'  # 强制终止
     elif os.name == 'posix':  # Linux/Unix
@@ -171,8 +173,8 @@ def kill_process(pid):
     except Exception as e:
         print(e)
 
-# 设置随机种子      
 def setup_seed(seed = None):
+    """固定 PyTorch/NumPy/Python 随机种子及 cudnn 确定性选项。"""
     if seed is None:
         seed = 1970010101
     
@@ -187,6 +189,7 @@ def setup_seed(seed = None):
     os.environ['PYTHONHASHSEED'] = str(seed)   # 防止哈希随机化，固定 ​Python 解释器的哈希随机化种子，确保字典遍历、集合操作的顺序一致性
     
 def setup_mp():
+    """多进程 ``spawn`` 并限制 OpenMP/MKL 线程数。"""
     # 设置多进程模式
     mp.set_start_method('spawn')  # 强制使用安全的进程创建方式
     os.environ["OMP_NUM_THREADS"] = "1"  # 避免 OpenMP 线程冲突
@@ -196,6 +199,7 @@ def setup_mp():
     
 
 def save_samples_for_IL(sample_queue: mp.Queue):
+    """从队列耗尽样本并保存为 ``obs.npy`` / ``act.npy``（模仿学习数据导出）。"""
     obs_array = []
     act_array = []
     while not sample_queue.empty():

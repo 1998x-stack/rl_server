@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-YAML configuration loader with environment variable interpolation.
-"""
+"""YAML 配置加载：支持覆盖文件深度合并与环境变量 ``${VAR:default}`` 插值。"""
 import os
 import re
 import copy
@@ -13,7 +11,14 @@ _ENV_VAR_PATTERN = re.compile(r'\$\{([^}]+)\}')
 
 
 def interpolate_env_vars(value: str) -> str:
-    """Replace ${VAR:default} patterns with environment variable values."""
+    """将字符串中的 ``${VAR}`` / ``${VAR:default}`` 替换为环境变量值。
+
+    Args:
+        value: 输入字符串；非字符串类型原样返回。
+
+    Returns:
+        替换后的字符串或原 ``value``。
+    """
     if not isinstance(value, str):
         return value
 
@@ -29,7 +34,7 @@ def interpolate_env_vars(value: str) -> str:
 
 
 def _interpolate_recursive(obj: Any) -> Any:
-    """Recursively interpolate env vars in a nested dict/list structure."""
+    """递归处理字典与列表中的字符串叶子节点。"""
     if isinstance(obj, str):
         return interpolate_env_vars(obj)
     elif isinstance(obj, dict):
@@ -40,7 +45,7 @@ def _interpolate_recursive(obj: Any) -> Any:
 
 
 def _deep_merge(base: Dict, override: Dict) -> Dict:
-    """Deep merge override into base. Override values take precedence."""
+    """深度合并：``override`` 覆盖 ``base``，子字典递归合并。"""
     result = copy.deepcopy(base)
     for key, value in override.items():
         if key in result and isinstance(result[key], dict) and isinstance(value, dict):
@@ -51,17 +56,17 @@ def _deep_merge(base: Dict, override: Dict) -> Dict:
 
 
 def load_config(base_path: str, override_path: Optional[str] = None) -> Dict:
-    """Load YAML config with optional override file and env var interpolation.
+    """加载主 YAML，可选合并覆盖文件，并对结果做环境变量插值。
 
     Args:
-        base_path: Path to the base YAML config file.
-        override_path: Optional path to an override YAML file.
+        base_path: 主配置文件路径。
+        override_path: 可选覆盖文件路径。
 
     Returns:
-        Merged and interpolated configuration dictionary.
+        最终配置字典。
 
     Raises:
-        FileNotFoundError: If base_path does not exist.
+        FileNotFoundError: 主文件不存在时。
     """
     if not os.path.exists(base_path):
         raise FileNotFoundError(f"Config file not found: {base_path}")

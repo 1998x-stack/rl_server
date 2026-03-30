@@ -1,9 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-:Author: XM
-:Coding: UTF-8
-:Version: 1.0
-"""
+"""MuJoCo 连续控制 SAC：双 Q、随机策略与温度，含环境与超参。"""
 import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 
@@ -23,7 +19,7 @@ import libs.exps as Exps
 TRAIN_ENVS = {
     # 基础控制环境
     'Swimmer': SimpleNamespace(**{
-        'ENV_NAME': "Swimmer-v3",
+        'ENV_NAME': "Swimmer-v4",
         'OBS_DIM': 8,       # 包含4个关节位置+4个关节速度
         'ACT_DIM': 2,       # 两对对称的推进器控制
         'HIDDEN_DIM': 32,     # 简单动力学适合小网络
@@ -32,7 +28,7 @@ TRAIN_ENVS = {
     
     # 高速运动控制
     'HalfCheetah': SimpleNamespace(**{
-        'ENV_NAME': "HalfCheetah-v3",
+        'ENV_NAME': "HalfCheetah-v4",
         'OBS_DIM': 17,      # 8个身体部位位置+9个速度传感器
         'ACT_DIM': 6,       # 6个旋转关节扭矩控制
         'HIDDEN_DIM': 64,     # 中等复杂度运动控制
@@ -41,8 +37,8 @@ TRAIN_ENVS = {
 
     # 复杂多关节控制
     'Ant': SimpleNamespace(**{
-        'ENV_NAME': "Ant-v3",
-        'OBS_DIM': 111,     # 13个关节位置+14个接触传感器+84个附加状态
+        'ENV_NAME': "Ant-v4",
+        'OBS_DIM': 27,     # 13个关节位置+14个接触传感器+84个附加状态
         'ACT_DIM': 8,       # 四条腿各两个关节
         'HIDDEN_DIM': 256,    # 高维状态需深层网络
         'USE_NOISE': True   # 地形不平整模拟
@@ -50,7 +46,7 @@ TRAIN_ENVS = {
 
     # 平衡控制基准
     'Hopper': SimpleNamespace(**{
-        'ENV_NAME': "Hopper-v3",
+        'ENV_NAME': "Hopper-v4",
         'OBS_DIM': 11,      # 4个关节角度+3个位置+4个速度
         'ACT_DIM': 3,       # 髋/膝/踝关节驱动
         'HIDDEN_DIM': 64,
@@ -59,7 +55,7 @@ TRAIN_ENVS = {
 
     # 物体操作环境
     'Pusher': SimpleNamespace(**{
-        'ENV_NAME': "Pusher-v2",
+        'ENV_NAME': "Pusher-v5",
         'OBS_DIM': 23,      # 包含机械臂7关节+物体6D位姿
         'ACT_DIM': 7,       # 7自由度机械臂控制
         'HIDDEN_DIM': 128,    # 操作任务需要空间感知
@@ -68,7 +64,7 @@ TRAIN_ENVS = {
 
     # 高自由度人体控制
     'Humanoid': SimpleNamespace(**{
-        'ENV_NAME': "Humanoid-v3",
+        'ENV_NAME': "Humanoid-v4",
         'OBS_DIM': 376,     # 包含全身22个关节的完整动力学数据
         'ACT_DIM': 17,      # 主要关节驱动
         'HIDDEN_DIM': 512,    # 需大规模网络建模
@@ -77,7 +73,7 @@ TRAIN_ENVS = {
 
     # 双足行走控制
     'Walker2d': SimpleNamespace(**{
-        'ENV_NAME': "Walker2d-v3",
+        'ENV_NAME': "Walker2d-v4",
         'OBS_DIM': 17,      # 包含质心速度+关节角度
         'ACT_DIM': 6,       # 髋/膝/踝对称控制
         'HIDDEN_DIM': 64,
@@ -94,8 +90,8 @@ TRAIN_ENVS = {
     }),
     
     'Reacher3D': SimpleNamespace(**{
-        'ENV_NAME': "Reacher-v3",    # 三维空间到达任务
-        'OBS_DIM': 16,       # 目标坐标+关节状态
+        'ENV_NAME': "Reacher-v4",    # 三维空间到达任务
+        'OBS_DIM': 11,       # 目标坐标+关节状态
         'ACT_DIM': 2,        # 平面旋转控制
         'HIDDEN_DIM': 128,
         'USE_NOISE': True    # 目标位置随机偏移
@@ -119,8 +115,8 @@ TRAIN_ENVS = {
     }),
     
     'HumanoidStandup': SimpleNamespace(**{
-        'ENV_NAME': "HumanoidStandup-v2",
-        'OBS_DIM': 376,      # 同Humanoid-v3
+        'ENV_NAME': "HumanoidStandup-v4",
+        'OBS_DIM': 376,      # 同Humanoid-v4
         'ACT_DIM': 17,
         'HIDDEN_DIM': 512,
         'USE_NOISE': True    # 初始姿态随机化

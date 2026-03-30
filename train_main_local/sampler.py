@@ -1,15 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-:Author: XM
-:Coding: UTF-8
-:Version: 1.0
-"""
-"""
-1 初始化各种结构
-2 采样
-3 发送采样数据到exps queue
-4 更新网络参数
-"""
+"""遗留 Sampler 子进程：多环境 rollout，将经验批次放入样本队列。"""
 import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 

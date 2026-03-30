@@ -1,26 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-:Author: XM
-:Coding: UTF-8
-:Version: 1.0
-"""
-"""
-0 启动logger,tensorboardX
-1 grads 数据结构
-2 启动Worker
-3 启动Master
-4 启动redis 或者 sampler
-while True
-    5 检测退出
-        join各个进程
-    6 从redis 或 sample queue 获取 样本
-    7 发送采样数据到master
-    8 整合梯度，发送新网络到 master 和 redis
-
-8 清理退出
-
-该文件为独立train_main_sample, 多个sample_main, 带redis 服务器
-"""
+"""Redis 模式训练主程序（遗留）：多 ``sample_main`` 与模型 Redis 协同，主进程聚合梯度并广播权重。"""
 import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 

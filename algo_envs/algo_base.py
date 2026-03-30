@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-"""
-:Author: XM
-:Coding: UTF-8
-:Version: 1.0
+"""算法共享基类：``AlgoBaseNet`` / ``AlgoBaseAgent`` / ``AlgoBaseCalculate``、带噪线性层与梯度缩放。
+
+遗留脚本通过 ``sys.path`` 引用；新代码请优先使用 ``rl_server.core`` 等价实现。
 """
 import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))

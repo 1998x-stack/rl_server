@@ -1,12 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-:Author: XM
-:Coding: UTF-8
-:Version: 1.0
-"""
-"""
-训练体,被 train_main_grad所用
-"""
+"""梯度分离架构下的 Trainer（遗留）：将梯度推送至 Redis 供 ``grads_main`` 聚合。"""
 import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 

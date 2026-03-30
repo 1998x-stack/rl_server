@@ -1,29 +1,10 @@
 # -*- coding: utf-8 -*-
-"""
-:Author: XM
-:Coding: UTF-8
-:Version: 1.0
+"""分离梯度服务架构下的训练主程序（遗留）：Trainer 将梯度推至 ``grads_main``，由独立聚合进程更新模型。
+
+说明：与 ``train_main_local``、``train_main_redis`` 并列的部署形态。
 """
 import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
-
-"""
-0 启动logger,tensorboardX
-1 grads 数据结构
-2 启动Worker
-3 启动Master
-4 启动redis 或者 sampler
-while True
-    5 检测退出
-        join各个进程
-    6 从redis 或 sample queue 获取 样本
-    7 发送采样数据到master
-    8 整合梯度，发送新网络到 master 和 redis
-
-9 清理退出
-
-该文件为多个train_main_grads, 一个 grads_main,多个 sample_main
-"""
 
 import time, queue
 import torch.multiprocessing as mp # 计算密集型，而非IO密集型，GIL

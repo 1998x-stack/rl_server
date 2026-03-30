@@ -1,24 +1,7 @@
 # -*- coding: utf-8 -*-
-"""
-:Author: XM
-:Coding: UTF-8
-:Version: 1.0
-"""
-"""
-0 启动logger,tensorboardX
-1 grads 数据结构
-2 启动Worker
-3 启动Master
-4 启动redis 或者 sampler
-while True
-    5 检测退出
-        join各个进程
-    6 从redis 或 sample queue 获取 样本
-    7 发送采样数据到master
-    8 整合梯度,发送新网络到 master 和 redis
+"""本地多进程训练主程序（遗留）：启动 Trainer/Sampler/Checker，主进程聚合梯度并更新共享模型。
 
-9 清理退出
-该文件为独立train_main_local,自带sampler
+流程：启动日志与队列 → 启动 Worker → 循环拉取梯度并 ``update_state`` → 退出时 join 子进程。
 """
 import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))

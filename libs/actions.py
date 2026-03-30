@@ -1,9 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-:Author: XM
-:Coding: UTF-8
-:Version: 1.0
-"""
+"""离散动作选择器：贪心、ε-贪心、按概率采样及 ε 线性衰减（与 ``rl_server.core.actions`` 同源）。"""
 import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 

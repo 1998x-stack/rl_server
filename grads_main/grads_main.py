@@ -1,14 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-用于整合 grads 的服务器。
-1 启动logger
-2 启动redis
-3 读取新的梯度信息，累计后更新网络。
-
-:Author: XM
-:Coding: UTF-8
-:Version: 1.0
-"""
+"""梯度聚合守护进程（遗留）：从梯度 Redis 拉取梯度、批更新后写入模型 Redis 并可选落盘。"""
 import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 

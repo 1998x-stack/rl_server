@@ -1,16 +1,7 @@
 # -*- coding: utf-8 -*-
-"""
-:Author: XM
-:Coding: UTF-8
-:Version: 1.0
-"""
-"""
-1 写入 version
-2 写入 model
-3 写入 exps
-4 读取 version
-5 读取 model
-6 读取 exps
+"""Redis 训练协调客户端：模型版本、经验列表、梯度队列与退出标志（与 ``rl_server.transport.redis_cache`` 同源）。
+
+键约定：读写 ``version`` / ``model`` / ``exps`` 等。
 """
 import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))

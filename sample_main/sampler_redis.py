@@ -1,18 +1,8 @@
 # -*- coding: utf-8 -*-
-"""
-:Author: XM
-:Coding: UTF-8
-:Version: 1.0
-"""
+"""Redis 采样工作模块（遗留）：供 ``sample_main_redis`` 调用的采样循环与队列交互。"""
 import sys,os
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
 
-"""
-1 初始化各种结构
-2 采样
-3 发送采样数据到exps queue
-4 更新网络参数
-"""
 
 import time
 import torch.nn as nn
