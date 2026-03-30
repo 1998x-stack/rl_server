@@ -1,3 +1,4 @@
+"""YAML 配置加载与环境变量插值单元测试。"""
 import os
 import sys
 import pytest

@@ -1,3 +1,4 @@
+"""``libs.config`` 与配置存根的单元测试。"""
 import os
 import sys
 import types

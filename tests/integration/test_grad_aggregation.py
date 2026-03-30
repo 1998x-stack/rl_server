@@ -1,3 +1,4 @@
+"""梯度聚合逻辑集成测试。"""
 import pytest
 import torch
 import numpy as np

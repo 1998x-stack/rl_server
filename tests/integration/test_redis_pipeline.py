@@ -1,3 +1,4 @@
+"""基于 fakeredis 的 Redis 管道集成测试。"""
 import pytest
 import torch
 
