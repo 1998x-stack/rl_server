@@ -144,15 +144,15 @@ class RedisCache:
     # 获取采样经验
     def pop_exps(self):
         try:
-            # 返回为  Tuple(key,value) key 为 RedisCache.exps_name
-            # 调用为阻塞模式
-            exps_info = self.conn.brpop(RedisCache.exps_name)
+            exps_info = self.conn.brpop(RedisCache.exps_name, timeout=5)
+            if exps_info is None:
+                return None, None
             exps_info = zlib.decompress(exps_info[1])
             exps_info = pickle.loads(exps_info)
-            return exps_info['exps'],exps_info['sample_version']      
+            return exps_info['exps'], exps_info['sample_version']
         except Exception:
             self.log.log_exception()
-            return None,None
+            return None, None
             
     # 压入梯度信息
     def push_grads(self, grads: List, grads_version: int, sample_version: int):
@@ -175,12 +175,12 @@ class RedisCache:
     # 获取梯度信息
     def pop_grads(self):
         try:
-            # 返回为  Tuple(key,value) key 为 RedisCache.grads_name
-            # 调用为阻塞模式
-            grads_info = self.conn.brpop(RedisCache.grads_name)
+            grads_info = self.conn.brpop(RedisCache.grads_name, timeout=5)
+            if grads_info is None:
+                return None, None, None
             grads_info = zlib.decompress(grads_info[1])
             grads_info = pickle.loads(grads_info)
-            return grads_info['grads'],grads_info['grads_version'],grads_info['sample_version']
+            return grads_info['grads'], grads_info['grads_version'], grads_info['sample_version']
         except Exception:
             self.log.log_exception()
-            return None,None,None
+            return None, None, None

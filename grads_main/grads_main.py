@@ -88,9 +88,9 @@ if __name__ == '__main__':
             if grads_count >= queue_config['batch_update_grads_server']:
                 
                 # 更新版本
-                current_grads_version = current_grads_version + 1
-                grads_net.update_state(current_train_version,grads_buffer)
-                model_redis_cache.set_train_version_model(current_grads_version,grads_net)
+                current_train_version = current_train_version + 1
+                grads_net.update_state(current_train_version, grads_buffer)
+                model_redis_cache.set_train_version_model(current_train_version, grads_net)
        
                 grads_buffer = None
                 grads_count = 0

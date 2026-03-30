@@ -20,6 +20,7 @@ import torch.multiprocessing as mp # 计算密集型，而非IO密集型，GIL
 import libs.log as log
 import libs.utils as utils
 import libs.config as config
+import libs.redis_cache as redis_cache
 
 class TrainerRedis:
     

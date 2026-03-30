@@ -249,8 +249,11 @@ class MicroRTSAgent(AlgoBase.AlgoBaseAgent):
         self.obs = self.env.reset()[0]
     
     def __del__(self):
-        # del self.env
-        pass
+        try:
+            if hasattr(self, 'env') and self.env is not None:
+                self.env.close()
+        except Exception:
+            pass
         
     def get_units_number(unit_type, bef_obs, ind_obs):
         return int(bef_obs[ind_obs][:, :, unit_type].sum())
