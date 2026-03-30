@@ -22,6 +22,33 @@ import torch.nn as nn
 from typing import Dict, List
 
 from libs.log import Log
+import time as _time
+import functools
+
+
+def _retry(max_retries=3, base_delay=1.0):
+    """Retry decorator with exponential backoff for Redis operations."""
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(self, *args, **kwargs):
+            last_exception = None
+            for attempt in range(max_retries):
+                try:
+                    return func(self, *args, **kwargs)
+                except redis.ConnectionError as e:
+                    last_exception = e
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)
+                        self.log.log_info(f"Redis connection error, retrying in {delay}s (attempt {attempt + 1}/{max_retries})")
+                        _time.sleep(delay)
+                        try:
+                            self.conn.ping()
+                        except Exception:
+                            self._reconnect()
+            self.log.log_exception()
+            raise last_exception
+        return wrapper
+    return decorator
 
 
 class RedisCache:
@@ -55,7 +82,27 @@ class RedisCache:
  
     def __del__(self):
         self.conn.close()
-        
+
+    def _reconnect(self):
+        """Attempt to reconnect to Redis."""
+        try:
+            self.conn.close()
+        except Exception:
+            pass
+        self.conn = redis.Redis(
+            host=self.redis_config['ip'],
+            port=self.redis_config['port'],
+            db=self.redis_config['db'],
+            password=self.redis_config['pw']
+        )
+
+    def health_check(self) -> bool:
+        """Check if Redis connection is alive."""
+        try:
+            return self.conn.ping()
+        except Exception:
+            return False
+
     # 是否使用 发布/订阅来解决模型同步问题？ todo by soongxl
         
     # 清空redis
@@ -86,6 +133,7 @@ class RedisCache:
             return None
         
     # 设置训练模型数据
+    @_retry()
     def set_train_version_model(self, version: int, model: nn.Module):
         try:
             model_dict = pickle.dumps(model.state_dict(), protocol=pickle.HIGHEST_PROTOCOL)
@@ -126,7 +174,8 @@ class RedisCache:
             self.log.log_exception()
             return False
                         
-    # 压入采样经验    
+    # 压入采样经验
+    @_retry()
     def push_exps(self, exps: List, sample_version: int):
         try:
             exps_info = dict()
@@ -155,6 +204,7 @@ class RedisCache:
             return None, None
             
     # 压入梯度信息
+    @_retry()
     def push_grads(self, grads: List, grads_version: int, sample_version: int):
         try:
             grads_info = dict()

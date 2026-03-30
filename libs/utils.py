@@ -15,6 +15,18 @@ import numpy as np
 from tensorboardX import SummaryWriter
 import traceback, time, glob
 from typing import Optional, Dict
+import signal
+import threading
+
+_shutdown_event = threading.Event()
+
+
+def setup_signal_handlers():
+    """Install SIGTERM/SIGINT handlers that set the shutdown event."""
+    def _handler(signum, frame):
+        _shutdown_event.set()
+    signal.signal(signal.SIGTERM, _handler)
+    signal.signal(signal.SIGINT, _handler)
     
 def get_model_state_path(prefix: str, version: Optional[str] = None) -> Optional[str]:
     """
@@ -133,16 +145,15 @@ def save_model_to_file(
         print(f"Save model failed: {str(e)}")
         return None
     
-# start_time = time.time()
-# 运行退出
-def exit_run(): 
-    # if time.time()-start_time > 4*60*60: 
-        # return True
-    path = os.path.abspath(os.path.dirname(__file__) + '/' + '../') 
-    if os.path.exists(path+"/exit.cmd"):
+def exit_run() -> bool:
+    """Check if shutdown was requested (via signal or legacy exit.cmd file)."""
+    if _shutdown_event.is_set():
         return True
-    else:
-        return False
+    # Legacy fallback: check for exit.cmd file
+    path = os.path.abspath(os.path.dirname(__file__) + '/' + '../')
+    if os.path.exists(path + "/exit.cmd"):
+        return True
+    return False
     
 # 杀掉进程
 def kill_process(pid):

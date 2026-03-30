@@ -1,52 +1,50 @@
 # -*- coding: utf-8 -*-
 """
-:Author: XM
-:Coding: UTF-8
-:Version: 1.0
-"""
-import sys,os
-sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '..'))
-
-"""
-log system 内容存放路径为 ../logs
+Structured logging with worker identity.
+Backwards-compatible: Log class interface preserved.
 """
 import os
-import time
-import traceback, sys
+import logging
+import sys
+
+
+def setup_logging(dir_name: str, level: str = 'INFO') -> logging.Logger:
+    """Create a logger with both file and console handlers."""
+    log_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', 'logs', dir_name)
+    os.makedirs(log_dir, exist_ok=True)
+
+    logger = logging.getLogger(dir_name)
+    logger.setLevel(getattr(logging, level.upper(), logging.INFO))
+
+    if not logger.handlers:
+        fmt = logging.Formatter(
+            '[%(asctime)s] [%(levelname)s] [%(name)s:%(process)d] %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+        # File handler
+        fh = logging.FileHandler(
+            os.path.join(log_dir, f'{dir_name}.log'),
+            encoding='utf-8'
+        )
+        fh.setFormatter(fmt)
+        logger.addHandler(fh)
+
+        # Console handler
+        ch = logging.StreamHandler(sys.stdout)
+        ch.setFormatter(fmt)
+        logger.addHandler(ch)
+
+    return logger
+
 
 class Log:
-    def __init__(self,dir_name):
-        """
-        检测 ../logs下是否存在对应的文件目录
-        没有则创建
-        """
-        self.dir_name = os.path.join(os.path.abspath(os.path.dirname(__file__)),'../logs/',dir_name)# "../logs/" + dir_name
-        try:
-            if not os.path.exists(self.dir_name):
-                os.makedirs(self.dir_name)
-        except:
-            print("create log dir: "+ self.dir_name + " error")
-    
-    def log_info(self,message:str, print_screen:bool=False):
-        # 检测文件是否存在
-        file_name = self.dir_name + "/" + time.strftime("%Y-%m-%d", time.localtime()) + ".log"
-        message = time.strftime("%Y-%m-%d %H:%M:%S ", time.localtime()) + message
-        # 进行打屏
-        if print_screen:
-            print(message)
-            
-        message = message + "\n"
-        try:
-            fa = open(file_name,"a")
-            fa.write(message)
-        except:
-            print("write log message: "+ message + " error")
-        finally:
-            fa.close()
+    """Backwards-compatible wrapper around Python logging."""
 
-    # 异常日志
-    def log_exception(self, print_screen: bool=False):
-        exc_type, exc_value, exc_traceback = sys.exc_info()
-        error = "Exception: " + repr(traceback.format_exception(exc_type, exc_value, exc_traceback))  # 将异常信息转为字符串
-        self.log_info(error, print_screen)
-    
+    def __init__(self, dir_name: str):
+        self.logger = setup_logging(dir_name)
+
+    def log_info(self, message: str, print_screen: bool = False):
+        self.logger.info(message)
+
+    def log_exception(self, print_screen: bool = False):
+        self.logger.exception("Exception occurred")
