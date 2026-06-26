@@ -1,0 +1,64 @@
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  grads:
+    build: .
+    image: rl_server:latest
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - REDIS_MODEL_HOST=redis
+      - REDIS_EXPS_HOST=redis
+      - REDIS_GRADS_HOST=redis
+      - REDIS_PASSWORD=
+    command: >
+      python -m rl_server.entrypoints.grads
+      --config rl_server/config/default.yaml
+      --env-name MujocoNormal
+
+  sampler:
+    build: .
+    image: rl_server:latest
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+      grads:
+        condition: service_started
+    environment:
+      - REDIS_MODEL_HOST=redis
+      - REDIS_EXPS_HOST=redis
+      - REDIS_GRADS_HOST=redis
+      - REDIS_PASSWORD=
+    command: >
+      python -m rl_server.entrypoints.sample
+      --config rl_server/config/default.yaml
+      --env-name MujocoNormal
+
+  checker:
+    build: .
+    image: rl_server:latest
+    restart: unless-stopped
+    profiles:
+      - monitor
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - REDIS_MODEL_HOST=redis
+      - REDIS_EXPS_HOST=redis
+      - REDIS_GRADS_HOST=redis
+      - REDIS_PASSWORD=
+    command: >
+      python -m rl_server.entrypoints.check
+      --config rl_server/config/default.yaml
+      --env-name MujocoNormal

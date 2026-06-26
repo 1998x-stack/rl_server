@@ -12,7 +12,7 @@ from collections import deque
 from typing import Optional, Union
 
 from gym_microrts import microrts_ai
-from gym_microrts.envs.vec_env import MicroRTSVecEnv
+from gym_microrts.envs.vec_env import MicroRTSGridModeVecEnv
 
 from rl_server.core.base import AlgoBaseNet, AlgoBaseAgent, AlgoBaseCalculate, layer_init
 
@@ -172,7 +172,7 @@ class MicroRTSNet(AlgoBaseNet):
 
 
 class MicroRTSAgent(AlgoBaseAgent):
-    """``MicroRTSVecEnv`` 上并行 rollout，支持 checker 统计与 TB 风格日志。"""
+    """``MicroRTSGridModeVecEnv`` 上并行 rollout，支持 checker 统计与 TB 风格日志。"""
 
     def __init__(self, sample_net, is_checker=False):
         self.model_config = MODEL_CONFIG
@@ -186,19 +186,23 @@ class MicroRTSAgent(AlgoBaseAgent):
         self.total_rewards = 0
         self.steps = 0
         if not is_checker:
-            self.env = MicroRTSVecEnv(
-                num_envs=self.num_envs,
+            self.env = MicroRTSGridModeVecEnv(
+                num_selfplay_envs=0,
+                num_bot_envs=self.num_envs,
                 max_steps=5000,
+                autobuild=False,
                 ai2s=[microrts_ai.coacAI for _ in range(self.num_envs)],
-                map_path='maps/10x10/basesWorkers10x10.xml',
+                map_paths=['maps/10x10/basesWorkers10x10.xml'],
                 reward_weight=np.array([10.0, 1.0, 1.0, 0.2, 1.0, 4.0])
             )
         else:
-            self.env = MicroRTSVecEnv(
-                num_envs=self.num_check_single_envs,
+            self.env = MicroRTSGridModeVecEnv(
+                num_selfplay_envs=0,
+                num_bot_envs=self.num_check_single_envs,
                 max_steps=5000,
+                autobuild=False,
                 ai2s=[microrts_ai.coacAI for _ in range(self.num_check_single_envs)],
-                map_path='maps/10x10/basesWorkers10x10.xml',
+                map_paths=['maps/10x10/basesWorkers10x10.xml'],
                 reward_weight=np.array([10.0, 1.0, 1.0, 0.2, 1.0, 4.0])
             )
         self.obs = self.env.reset()[0]
