@@ -12,7 +12,7 @@ from collections import deque
 from typing import Optional, Union
 
 from gym_microrts import microrts_ai
-from gym_microrts.envs.vec_env import MicroRTSGridModeVecEnv
+from gym_microrts.envs.vec_env import MicroRTSVecEnv
 
 from rl_server.core.base import AlgoBaseNet, AlgoBaseAgent, AlgoBaseCalculate, layer_init
 
@@ -39,7 +39,7 @@ MODEL_CONFIG['NUM_ENVS'] = 8
 MODEL_CONFIG['NUM_STEPS'] = 512
 MODEL_CONFIG['OBS_SPACE'] = (10, 10, 27)
 MODEL_CONFIG['ACTION_SHAPE'] = [100, 6, 4, 4, 4, 4, 7, 49]
-MODEL_CONFIG['DEVICE'] = torch.device('cuda:0' if torch.cuda.is_available() and False else 'cpu')
+MODEL_CONFIG['DEVICE'] = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 
 class MaskedCategorical(Categorical):
@@ -92,11 +92,17 @@ class MaskedCategorical(Categorical):
     def _apply_action_masks(self, logits, probs):
         if logits is not None:
             clamped_logits = logits.to(self.device)
-            return torch.where(
+            # Replace NaN with a large negative value so masked softmax doesn't error
+            clamped_logits = torch.nan_to_num(clamped_logits, nan=-1e9)
+            masked = torch.where(
                 self.action_masks,
                 clamped_logits,
                 torch.tensor(-torch.inf, device=self.device)
             )
+            all_masked = ~self.action_masks.any(dim=-1)
+            if all_masked.any():
+                masked[all_masked] = clamped_logits[all_masked]
+            return masked
         elif probs is not None:
             clamped_probs = probs.to(self.device)
             return torch.where(
@@ -167,12 +173,12 @@ class MicroRTSNet(AlgoBaseNet):
     def update_state(self, version, grads_buffer):
         self.train_optim.zero_grad()
         for param, grad in zip(self.parameters(), grads_buffer):
-            param.grad = torch.FloatTensor(grad).to(MODEL_CONFIG['DEVICE'])
+            param.grad = torch.FloatTensor(grad)
         self.train_optim.step()
 
 
 class MicroRTSAgent(AlgoBaseAgent):
-    """``MicroRTSGridModeVecEnv`` 上并行 rollout，支持 checker 统计与 TB 风格日志。"""
+    """``MicroRTSVecEnv`` 上并行 rollout，支持 checker 统计与 TB 风格日志。"""
 
     def __init__(self, sample_net, is_checker=False):
         self.model_config = MODEL_CONFIG
@@ -186,64 +192,22 @@ class MicroRTSAgent(AlgoBaseAgent):
         self.total_rewards = 0
         self.steps = 0
         if not is_checker:
-            self.env = MicroRTSGridModeVecEnv(
-                num_selfplay_envs=0,
-                num_bot_envs=self.num_envs,
+            self.env = MicroRTSVecEnv(
+                num_envs=self.num_envs,
                 max_steps=5000,
-                autobuild=False,
                 ai2s=[microrts_ai.coacAI for _ in range(self.num_envs)],
-                map_paths=['maps/10x10/basesWorkers10x10.xml'],
+                map_path='maps/10x10/basesWorkers10x10.xml',
                 reward_weight=np.array([10.0, 1.0, 1.0, 0.2, 1.0, 4.0])
             )
         else:
-            self.env = MicroRTSGridModeVecEnv(
-                num_selfplay_envs=0,
-                num_bot_envs=self.num_check_single_envs,
+            self.env = MicroRTSVecEnv(
+                num_envs=self.num_check_single_envs,
                 max_steps=5000,
-                autobuild=False,
                 ai2s=[microrts_ai.coacAI for _ in range(self.num_check_single_envs)],
-                map_paths=['maps/10x10/basesWorkers10x10.xml'],
+                map_path='maps/10x10/basesWorkers10x10.xml',
                 reward_weight=np.array([10.0, 1.0, 1.0, 0.2, 1.0, 4.0])
             )
-        obs_result = self.env.reset()
-        self.obs = obs_result[0] if isinstance(obs_result, tuple) else obs_result
-
-        # Patch new gym_microrts API to expose old getUnitLocationMasks / getUnitActionMasks
-        _env = self.env
-        _cached_masks = [None]
-        _cached_source_mask = [None]
-
-        def _get_masks():
-            if _cached_masks[0] is None:
-                masks = np.array(_env.vec_client.getMasks(0))
-                _cached_masks[0] = masks
-                _cached_source_mask[0] = masks[:, :, :, 0].reshape(masks.shape[0], -1)
-            return _cached_masks[0], _cached_source_mask[0]
-
-        def _get_unit_location_masks():
-            _, src_mask = _get_masks()
-            return src_mask
-
-        def _get_unit_action_masks(unit_indices):
-            masks, src_mask = _get_masks()
-            action_masks = masks[:, :, :, 1:].reshape(masks.shape[0], masks.shape[1] * masks.shape[2], -1)
-            result = []
-            for env_idx, unit_idx in enumerate(unit_indices):
-                true_positions = np.where(src_mask[env_idx])[0]
-                if unit_idx < len(true_positions):
-                    pos = true_positions[unit_idx]
-                    result.append(action_masks[env_idx, pos])
-                else:
-                    result.append(np.zeros(action_masks.shape[-1]))
-            return np.array(result)
-
-        def _invalidate_masks():
-            _cached_masks[0] = None
-            _cached_source_mask[0] = None
-
-        self.env.getUnitLocationMasks = _get_unit_location_masks
-        self.env.getUnitActionMasks = _get_unit_action_masks
-        self.env.invalidate_masks = _invalidate_masks
+        self.obs = self.env.reset()
 
     def __del__(self):
         try:
@@ -267,7 +231,7 @@ class MicroRTSAgent(AlgoBaseAgent):
         ]
         action_components = [multi_categoricals[0].sample()]
         action_masks = np.array(
-            self.env.getUnitActionMasks(
+            self.env.vec_client.getUnitActionMasks(
                 action_components[0].cpu().numpy()
             )
         )
@@ -297,7 +261,7 @@ class MicroRTSAgent(AlgoBaseAgent):
         multi_categoricals = [MaskedCategorical(logits=split_logits[0], masks=type_masks)]
         action_components = [multi_categoricals[0].argmax()]
         action_masks = np.array(
-            self.env.getUnitActionMasks(action_components[0].cpu().numpy())
+            self.env.vec_client.getUnitActionMasks(action_components[0].cpu().numpy())
         )
         action_masks = action_masks.reshape(len(action_components[0]), -1)
         action_masks = torch.Tensor(action_masks)
@@ -313,14 +277,13 @@ class MicroRTSAgent(AlgoBaseAgent):
         if self.num_steps > 0:
             for _ in range(0, self.num_steps):
                 self.steps = self.steps + 1
-                unit_mask = np.array(self.env.getUnitLocationMasks()).reshape(self.num_envs, -1)
+                unit_mask = np.array(self.env.vec_client.getUnitLocationMasks()).reshape(self.num_envs, -1)
                 with torch.no_grad():
                     action, mask, prob = self.get_action(states=torch.Tensor(self.obs), type_masks=unit_mask)
-                    next_obs, rs, done, truncated, _ = self.env.step(action.T)
+                    next_obs, rs, done, _ = self.env.step(action.T)
                     for i in range(self.num_envs):
                         exps[i].append([self.obs[i], action.T[i], rs[i], mask[i], done[i], prob.T[i], model_dict['TRAIN_VERSION']])
                 self.obs = next_obs
-                self.env.invalidate_masks()
         return exps
 
     def check_single_env(self):
@@ -330,10 +293,10 @@ class MicroRTSAgent(AlgoBaseAgent):
         step_record_dict['total_reward'] = 0
 
         for _ in range(0, 512):
-            unit_mask = np.array(self.env.getUnitLocationMasks()).reshape(self.num_check_single_envs, -1)
+            unit_mask = np.array(self.env.vec_client.getUnitLocationMasks()).reshape(self.num_check_single_envs, -1)
             with torch.no_grad():
                 action = self._get_single_action(states=torch.Tensor(self.obs), type_masks=unit_mask)
-                next_obs, rs, done, truncated, _ = self.env.step(action.T)
+                next_obs, rs, done, _ = self.env.step(action.T)
                 self.rewards.append(sum(rs) / len(rs))
                 self.total_rewards = self.total_rewards + rs[0]
             for i in range(self.num_check_single_envs):
@@ -349,7 +312,6 @@ class MicroRTSAgent(AlgoBaseAgent):
                         step_record_dict['total_reward'] = self.total_rewards
                         self.total_rewards = 0
             self.obs = next_obs
-            self.env.invalidate_masks()
         return step_record_dict
 
 
@@ -371,7 +333,7 @@ class MicroRTSCalculate(AlgoBaseCalculate):
         self.masks = torch.Tensor([]).to(device=self.device)
         self.probs = torch.Tensor([]).to(device=self.device)
         self.advantages = torch.Tensor([]).to(device=self.device)
-        self.calculate_net = MicroRTSNet()
+        self.calculate_net = MicroRTSNet().to(self.device)
 
     def generate_grads(self, samples, model_dict):
 
@@ -402,8 +364,8 @@ class MicroRTSCalculate(AlgoBaseCalculate):
         new_log_prob, entropy, new_values = self.get_prob_entropy_value(b_states, actions=b_actions.T, masks=b_masks)
         with torch.no_grad():
             last_gae_lam = 0
-            b_advantages = torch.zeros((len_samples,))
-            b_returns = torch.zeros((len_samples,))
+            b_advantages = torch.zeros((len_samples,)).to(device=self.device)
+            b_returns = torch.zeros((len_samples,)).to(device=self.device)
             for t in reversed(range(len_samples - 1)):
                 next_non_terminal = 1.0 - dones[t]
                 delta = rewards[t] + gamma * new_values[t + 1] * next_non_terminal - new_values[t]
