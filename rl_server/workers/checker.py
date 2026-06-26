@@ -50,6 +50,7 @@ class CheckerWorker:
                 if isinstance(infos, dict):
                     for (key, value) in infos.items():
                         writer.add_scalar(key, value, self.self_version)
+                    writer.flush()
                 time.sleep(0)
             except Exception:
                 self.log.log_exception()

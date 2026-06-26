@@ -69,6 +69,8 @@ def main():
     num_trainers = training_cfg.get('num_trainers', 1)
     num_samplers = training_cfg.get('num_samplers', 2)
     num_update_grads = training_cfg.get('num_update_grads', 1)
+    checkpoint_interval = training_cfg.get('checkpoint_interval', 100)
+    max_versions = training_cfg.get('max_versions', 10000)
     enable_checker = training_cfg.get('enable_checker', True)
 
     grads_queue = mp.Queue(maxsize=queues_cfg.get('len_grads_queue', 1000))
@@ -161,6 +163,15 @@ def main():
                 current_train_version += 1
                 train_net.update_state(current_train_version, grads_buffer)
                 model_dict['TRAIN_VERSION'] = current_train_version
+
+                if current_train_version % 10 == 0:
+                    train_log.log_info(f"Version {current_train_version}")
+
+                if (checkpoint_interval > 0
+                        and current_train_version % checkpoint_interval == 0):
+                    save_model(train_net, f"{model_prefix}_{env_name}",
+                               str(current_train_version), max_versions=max_versions)
+                    train_log.log_info(f"Checkpoint saved at version {current_train_version}")
 
                 grads_count = 0
                 grads_buffer = None
