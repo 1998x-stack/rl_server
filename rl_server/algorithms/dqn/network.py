@@ -58,7 +58,7 @@ MODEL_CONFIG['NUM_ENVS'] = 32
 MODEL_CONFIG['NUM_STEPS'] = 512
 MODEL_CONFIG['OBS_SPACE'] = (4,)
 MODEL_CONFIG['ACTION_SHAPE'] = [2]
-MODEL_CONFIG['DEVICE'] = torch.device('cuda:0' if torch.cuda.is_available() and False else 'cpu')
+MODEL_CONFIG['DEVICE'] = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 MAX_BUFFER_SIZE = 100000
 

@@ -125,7 +125,7 @@ MODEL_CONFIG['NUM_ENVS'] = 32
 MODEL_CONFIG['NUM_STEPS'] = 1000
 MODEL_CONFIG['OBS_SPACE'] = (8,)
 MODEL_CONFIG['ACTION_SHAPE'] = Box(-1.0, 1.0, (6,), np.float32)
-MODEL_CONFIG['DEVICE'] = torch.device('cuda:0' if torch.cuda.is_available() and False else 'cpu')
+MODEL_CONFIG['DEVICE'] = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 MODEL_CONFIG['MAX_ACTION'] = 1.0
 
 

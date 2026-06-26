@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """算法注册表与工厂：按 ``env_name`` 惰性加载并构造网络、智能体、梯度计算器。"""
+import torch
 from rl_server.core.base import AlgoBaseNet, AlgoBaseAgent, AlgoBaseCalculate
 
 # 环境名 -> (网络类, 智能体类, 计算器类)
@@ -16,6 +17,23 @@ def register(env_name, net_cls, agent_cls, calculate_cls):
         calculate_cls: 继承 ``AlgoBaseCalculate`` 的梯度计算器类。
     """
     _REGISTRY[env_name] = (net_cls, agent_cls, calculate_cls)
+
+
+def set_device(env_name: str, device):
+    """在构造网络前覆盖 ``MODEL_CONFIG['DEVICE']``，支持 CPU/GPU 切换。
+
+    必须在 ``create_net`` 之前调用，因为网络 ``__init__`` 时会将参数放到
+    ``MODEL_CONFIG['DEVICE']`` 上。
+
+    Args:
+        env_name: 注册表中的环境名。
+        device: ``torch.device`` 或字符串（如 ``"cuda:2"``、``"cpu"``）。
+    """
+    if env_name not in _REGISTRY:
+        _lazy_load(env_name)
+    net_cls, _, _ = _REGISTRY[env_name]
+    mod = __import__(net_cls.__module__, fromlist=['MODEL_CONFIG'])
+    mod.MODEL_CONFIG['DEVICE'] = torch.device(device) if isinstance(device, str) else device
 
 
 def create_net(env_name: str) -> AlgoBaseNet:

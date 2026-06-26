@@ -13,7 +13,7 @@ from rl_server.utils.logging import Log
 from rl_server.utils.process import setup_mp, setup_seed, should_exit, setup_signal_handlers
 from rl_server.utils.checkpoint import save_model, load_model
 from rl_server.config.loader import load_config
-from rl_server.algorithms import create_net
+from rl_server.algorithms import create_net, set_device
 from rl_server.workers.sampler import SamplerWorker
 from rl_server.workers.trainer import TrainerWorker
 from rl_server.workers.checker import CheckerWorker
@@ -74,13 +74,23 @@ def main():
     grads_queue = mp.Queue(maxsize=queues_cfg.get('len_grads_queue', 1000))
     sample_queue = mp.Queue(maxsize=queues_cfg.get('len_sample_queue', 1000))
 
+    device_str = training_cfg.get('device', 'cpu')
+    set_device(env_name, device_str)
+    train_log.log_info(f"Using device: {device_str}")
+
     train_net = create_net(env_name)
-    train_net.share_memory()
+    if next(train_net.parameters()).device.type == 'cpu':
+        train_net.share_memory()
+    else:
+        train_log.log_info("GPU mode: skipping share_memory (workers sync via load_state_dict)")
 
     current_train_version = load_model(train_net, f"{model_prefix}_{env_name}", model_version)
     if current_train_version is None:
         train_log.log_info("No existing model data, starting fresh training")
         current_train_version = 0
+    else:
+        current_train_version = int(current_train_version)
+        train_log.log_info(f"Resumed from version {current_train_version}")
 
     model_dict = mp.Manager().dict()
     model_dict['is_exit'] = False

@@ -45,6 +45,7 @@ class SamplerWorker:
                 break
 
             try:
+                sample_agent.sample_net.load_state_dict(self.share_model.state_dict())
                 exps_list = sample_agent.sample_multi_envs(self.model_dict)
 
                 if exps_list is not None:

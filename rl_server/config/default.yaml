@@ -17,6 +17,7 @@ redis:
 
 training:
   env_name: "DQNGymClassic"
+  device: "cpu"
   num_samplers: 2
   num_trainers: 1
   num_update_grads: 1
