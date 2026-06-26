@@ -117,6 +117,9 @@ TRAIN_CONFIG['q_mu_coef'] = 0.003
 TRAIN_CONFIG['mu_probs_coef'] = 0.002
 TRAIN_CONFIG['IS_CLIP_VALUE_LOSS'] = False
 TRAIN_CONFIG['LEARNING_RATE'] = 2.5e-4
+# Ablation: which ratio/pg_loss variant to use for final policy gradient
+# 'mixed' (default), 'discrete', 'prod', 'avg_discrete_prod'
+TRAIN_CONFIG['PPO_LOSS_TYPE'] = 'mixed'
 
 # Model and environment config
 MODEL_CONFIG = dict()
@@ -392,11 +395,20 @@ class MujocoNormalQCalculate(AlgoBaseCalculate):
         # mixed ratio
         ratio3 = (ratio1 + ratio2) / 2
 
-        # Policy loss
-        pg_loss3 = self.get_pg_loss(ratio3, t_advantages)
+        # --- Ablation: pg_loss variants (controlled by TRAIN_CONFIG['PPO_LOSS_TYPE']) ---
+        pg_loss1 = self.get_pg_loss(ratio1, t_advantages)  # discrete
+        pg_loss2 = self.get_pg_loss(ratio2, t_advantages)  # prod
+        pg_loss3 = self.get_pg_loss(ratio3, t_advantages)  # mixed (default)
+        pg_loss4 = (pg_loss1 + pg_loss2) / 2               # avg discrete+prod
 
-        # Policy loss
-        pg_loss = -pg_loss3.mean()
+        loss_type = self.train_config.get('PPO_LOSS_TYPE', 'mixed')
+        pg_loss_map = {
+            'discrete': pg_loss1,
+            'prod': pg_loss2,
+            'mixed': pg_loss3,
+            'avg_discrete_prod': pg_loss4,
+        }
+        pg_loss = -pg_loss_map[loss_type].mean()
 
         v_loss = F.mse_loss(t_returns, t_new_values) * vf_coef
 
