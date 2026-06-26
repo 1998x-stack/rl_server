@@ -46,191 +46,108 @@ python -m rl_server.entrypoints.train --env-name MujocoNormal
 
 No additional system dependencies needed. MuJoCo ships its own engine via `mujoco` PyPI package.
 
-### MicroRTS — requires manual JAR build
+### MicroRTS — requires gym_microrts 0.3.2 (PyPI)
 
-MicroRTS needs a compiled Java engine (`microrts.jar`). The gym_microrts package expects this JAR but cannot build it automatically in all environments.
-
-**Known gotchas (see below):** Python version constraint, old-gym API changes, JAR compilation, Java API mismatch.
-
----
-
-## MicroRTS: Full Setup Walkthrough
-
-### Step 1 — Install gym-microrts
+MicroRTS uses the old hierarchical-action `MicroRTSVecEnv` API, NOT the grid-based `MicroRTSGridModeVecEnv` from git-HEAD.
 
 ```bash
-# Must ignore Python version constraint (package says <3.10 but works on 3.10+)
-pip install --ignore-requires-python \
-    "gym-microrts @ git+https://github.com/Farama-Foundation/gym-microrts.git"
+pip install "gym-microrts==0.3.2" dacite
 ```
 
-The package installs old `gym` (0.23.x) as a dependency alongside `gymnasium`. They coexist — rl_server uses gymnasium for the training loop; gym_microrts uses old gym for its vec_env wrapper.
-
-### Step 2 — Install JDK and compile MicroRTS JAR
-
-```bash
-# Download JDK (no sudo needed)
-curl -sL "https://github.com/adoptium/temurin11-binaries/releases/download/jdk-11.0.26%2B4/OpenJDK11U-jdk_x64_linux_hotspot_11.0.26_4.tar.gz" \
-    -o /tmp/jdk11.tar.gz
-mkdir -p /tmp/jdk11 && tar xzf /tmp/jdk11.tar.gz -C /tmp/jdk11 --strip-components=1
-
-# Clone MicroRTS source
-git clone --depth 1 https://github.com/Farama-Foundation/MicroRTS.git /tmp/MicroRTS
-
-# Compile with classpath including all lib JARs
-JAVA_HOME=/tmp/jdk11 PATH=/tmp/jdk11/bin:$PATH
-cd /tmp/MicroRTS
-CP="lib/jdom.jar:lib/minimal-json-0.9.4.jar:lib/weka.jar"
-for jar in lib/bots/*.jar; do CP="$CP:$jar"; done
-
-mkdir -p /tmp/microrts-build
-find src -name "*.java" | grep -v "/test/" > /tmp/sources.txt
-javac -cp "$CP" -d /tmp/microrts-build @/tmp/sources.txt
-
-# Bundle into fat JAR
-cd /tmp/microrts-build
-jar xf /tmp/MicroRTS/lib/jdom.jar
-jar xf /tmp/MicroRTS/lib/minimal-json-0.9.4.jar
-jar xf /tmp/MicroRTS/lib/weka.jar
-for jar in /tmp/MicroRTS/lib/bots/*.jar; do jar xf "$jar"; done
-jar cf /tmp/microrts.jar .
-
-# Place where gym_microrts expects it
-MICRORTS_PKG=$(python -c "import gym_microrts; import os; print(os.path.dirname(gym_microrts.__file__))")
-cp /tmp/microrts.jar "$MICRORTS_PKG/microrts/microrts.jar"
-```
-
-### Step 3 — Code changes for gym-microrts API compatibility
-
-The rl_server MicroRTS implementation was written for the old `gym_microrts.envs.vec_env.MicroRTSVecEnv` API. The current gym_microrts uses `MicroRTSGridModeVecEnv` with a different constructor.
-
-**Required changes in `rl_server/algorithms/ppo/microrts.py`:**
-
-```python
-# 1. Import: MicroRTSVecEnv → MicroRTSGridModeVecEnv
-from gym_microrts.envs.vec_env import MicroRTSGridModeVecEnv
-
-# 2. Constructor: num_envs → num_selfplay_envs=0 + num_bot_envs=N
-#    map_path  → map_paths (list)
-#    Add autobuild=False (prevents JAR deletion)
-self.env = MicroRTSGridModeVecEnv(
-    num_selfplay_envs=0,
-    num_bot_envs=self.num_envs,
-    autobuild=False,
-    ai2s=[microrts_ai.coacAI for _ in range(self.num_envs)],
-    map_paths=['maps/10x10/basesWorkers10x10.xml'],
-    reward_weight=np.array([10.0, 1.0, 1.0, 0.2, 1.0, 4.0]),
-)
-```
-
-### Step 4 — Run
+The package needs numpy compat patches (see gotcha #1). The rl_server code (`rl_server/algorithms/ppo/microrts.py`) was written for this API — no code changes needed.
 
 ```bash
 python -m rl_server.entrypoints.train --env-name MicroRTS
 ```
 
+**Why 0.3.2, not git-HEAD:** The gym_microrts git-HEAD introduced `MicroRTSGridModeVecEnv` which uses a fundamentally different grid-based action space (action per map cell `[N, H*W, dim]`). rl_server's PPO MicroRTS implementation uses hierarchical actions (select unit → select action). These are architecturally incompatible — the network architecture, action selection, and experience format would all need rewriting.
+
 ---
 
-## MicroRTS Gotchas
+## MicroRTS Gotchas (gym_microrts 0.3.2)
 
-### 1. Python version constraint
+### 1. numpy 2.0 compatibility
 
-Package metadata says `Requires-Python: <3.10`. Use `--ignore-requires-python` with pip, or install from GitHub directly. The code works fine on 3.10+.
+gym_microrts 0.3.2 uses `np.int` and `np.float` which were removed in numpy 2.0. The `rl_server/algorithms/ppo/microrts.py` file includes a shim at the top of the file:
 
-### 2. Old gym vs gymnasium
+```python
+import numpy
+numpy.int = int
+numpy.float = float
+```
 
-gym_microrts imports old `gym` (unmaintained). This produces deprecation warnings about NumPy 2.0 and distutils. These are cosmetic — the environments work. rl_server uses gymnasium everywhere else; the two packages coexist without conflict.
-
-### 3. MicroRTSVecEnv → MicroRTSGridModeVecEnv
-
-Old API: `MicroRTSVecEnv(num_envs=N, map_path='...', ai2s=[...])`
-New API: `MicroRTSGridModeVecEnv(num_selfplay_envs=0, num_bot_envs=N, map_paths=['...'], ai2s=[...])`
-
-Key differences:
-- `num_envs` split into `num_selfplay_envs` + `num_bot_envs`
-- `ai2s` is for bot environments only (`assert num_bot_envs == len(ai2s)`)
-- `map_path` (str) → `map_paths` (list of str)
-- New: `autobuild` (bool), `partial_obs`, `frame_skip`, `cycle_maps`
-
-### 4. autobuild deletes your JAR
-
-`MicroRTSGridModeVecEnv(autobuild=True)` (default) will:
-1. Delete `microrts.jar`  
-2. Run `bash build.sh` (which does not exist)
-3. Fail because the JAR is gone
-
-Always pass `autobuild=False` and manage the JAR yourself.
-
-### 5. No JDK in standard environments
-
-The `build.sh` approach requires both JDK (`javac`) and Ant. Most deployments have only JRE. The JDK is needed only for the one-time JAR build — not at runtime. Pre-build the JAR and bake it into your Docker image.
-
-### 6. Java API version mismatch
-
-The latest MicroRTS `HEAD` may differ from what gym_microrts expects. If you see `AttributeError: 'JNIGridnetVecClient' object has no attribute 'getUnitLocationMasks'`, the JAR was compiled from a MicroRTS version that doesn't match the gym_microrts wrapper.
-
-**Workaround:** compile MicroRTS from a specific commit that matches your gym_microrts version. Check the gym_microrts source for which MicroRTS API it uses:
+Additionally, the installed gym_microrts source must be patched for spawned subprocesses (which start fresh Python interpreters):
 
 ```bash
-grep -r "UnitTypeTable\|getUnitLocationMasks\|JNIGridnetVecClient" \
-    $(python -c "import gym_microrts; print(gym_microrts.__path__[0])")
+python3 -c "
+import gym_microrts, os
+pkg_dir = os.path.dirname(gym_microrts.__file__)
+for root, dirs, files in os.walk(pkg_dir):
+    for f in files:
+        if f.endswith('.py'):
+            path = os.path.join(root, f)
+            content = open(path).read()
+            if 'np.int' in content or 'np.float' in content:
+                content = content.replace('np.int', 'int')
+                content = content.replace('np.float', 'float')
+                open(path, 'w').write(content)
+                print(f'Patched: {path}')
+"
 ```
 
-### 7. JVM startup in subprocesses
+Important: replace `np.int` with `int` but keep `np.int32`, `np.float32` etc. — only the bare `np.int`/`np.float` were removed.
 
-Each spawned worker (sampler, trainer, checker) starts its own JVM via JPype. This means:
-- N samplers × 1 JVM = N JVMs
-- Each JVM consumes ~200–500 MB heap
-- With `num_envs=16` per sampler and 2 samplers, expect ~1–2 GB extra memory
+### 2. Old gym step() returns 4 values
 
-### 8. CoacAI bot JAR
-
-The CoacAI opponent bot is bundled as `lib/bots/Coac.jar`. This JAR is in the gym_microrts package and included in the fat JAR we build. The `microrts_ai.coacAI` constant maps to this bot — it still exists in current gym_microrts.
-
-### 9. Observation shape: reset() return type changed
-
-Old API: `reset()` returns `(obs_list,)` — a tuple containing a list of N arrays, each `[H, W, C]`.
-New API: `reset()` returns a single numpy array `[N, H, W, C]`.
-
-Code like `self.obs = self.env.reset()[0]` breaks silently — it slices the FIRST env's observation `[H, W, C]` instead of the full batch `[N, H, W, C]`. The network then gets a 3D tensor when it expects 4D `[N, H, W, C]`.
-
-**Fix:**
-```python
-obs_result = self.env.reset()
-self.obs = obs_result[0] if isinstance(obs_result, tuple) else obs_result
-```
-
-### 10. step() action shape: grid-based vs hierarchical
-
-This is a **fundamental architectural difference** between the two APIs:
-
-| Aspect | Old API (MicroRTSVecEnv) | New API (MicroRTSGridModeVecEnv) |
-|---|---|---|
-| Action space | Hierarchical: select unit → select action | Grid-based: action per map cell |
-| Action shape | `[num_action_components, num_envs]` | `[num_envs, H*W, action_dim]` |
-| Mask API | `getUnitLocationMasks()`, `getUnitActionMasks(units)` | `getMasks(player)` returns `[N, H, W, 1+A+P]` |
-
-The rl_server PPO MicroRTS implementation (`microrts.py`) is architecturally coupled to the old hierarchical action space. **Porting it to the grid-based API requires rewriting:**
-- Network forward pass (logit shapes)
-- `get_action` / `_get_single_action` (action selection logic)
-- `sample_multi_envs` / `check_single_env` (experience storage format)
-- `MicroRTSCalculate.generate_grads` (loss computation from experiences)
-
-This is a ~200+ line refactor, not a drop-in fix. The old and new action semantics are incompatible at the design level.
-
-### 11. Mask caching pattern
-
-The new API's `getMasks(0)` calls Java via JPype on every invocation — expensive across hundreds of steps. The monkey-patch wrappers in the fixed microrts.py implement a cache-invalidate pattern:
+Old gym's `env.step()` returns `(obs, rewards, dones, infos)` — 4 values, not 5 (no `truncated`). The microrts.py code unpacks 4 values:
 
 ```python
-# After each env.step(), invalidate the mask cache
-self.env.invalidate_masks()
-
-# Next call to getUnitLocationMasks() or getUnitActionMasks()
-# triggers a fresh getMasks(0), caches the result, and indexes into it
+next_obs, rs, done, _ = self.env.step(action.T)
 ```
 
-This avoids duplicate JNI calls within a single step (both `getUnitLocationMasks` and `getUnitActionMasks` read from the same `getMasks(0)` result).
+### 3. reset() returns numpy array directly
+
+gym_microrts 0.3.2 `MicroRTSVecEnv.reset()` returns a numpy array `[N, H, W, C]` directly — NOT a tuple containing a list. Code must NOT do `reset()[0]`:
+
+```python
+self.obs = self.env.reset()  # [N, H, W, C] directly
+```
+
+### 4. GPU training: device consistency
+
+MicroRTS uses a CNN backbone (Conv2d). For GPU training:
+
+- `MicroRTSNet` parameters stay on CPU (no `.to(device)` in init — matches MuJoCo pattern)
+- `MicroRTSCalculate.calculate_net` moved to GPU via `.to(self.device)` for forward/backward
+- `generate_grads` returns CPU numpy arrays (`param.grad.data.cpu().numpy()`)
+- `update_state` assigns CPU tensors (`torch.FloatTensor(grad)`, no `.to(DEVICE)`)
+- All intermediate tensors in `generate_grads` must explicitly call `.to(device=self.device)`
+
+### 5. MaskedCategorical NaN handling
+
+When ALL actions are masked for a batch element, logits become all `-inf` → softmax produces NaN. The `MaskedCategorical._apply_action_masks` includes two guards:
+
+```python
+# 1. Replace NaN in input logits with large negative value
+clamped_logits = torch.nan_to_num(clamped_logits, nan=-1e9)
+
+# 2. If all actions masked, fall back to original logits
+all_masked = ~self.action_masks.any(dim=-1)
+if all_masked.any():
+    masked[all_masked] = clamped_logits[all_masked]
+```
+
+### 6. Slow rollout speed
+
+MicroRTS with coacAI is CPU-intensive. Each rollout: 512 steps × 8 envs, each step involves full Java MicroRTS simulation. Typical throughput: ~0.5 versions/min on CPU. GPU helps trainer but not samplers (envs are CPU-bound).
+
+### 7. JVM per spawned worker
+
+Each spawned worker starts its own JVM via JPype. With 2 samplers + 1 checker + 1 trainer, expect 4 JVMs consuming ~200-500 MB each = 1-2 GB extra RSS.
+
+### 8. grid API (git-HEAD) is architecturally incompatible
+
+gym_microrts git-HEAD (`MicroRTSGridModeVecEnv`) uses grid-based actions per map cell `[N, H*W, action_dim]`. rl_server's PPO MicroRTS uses hierarchical actions (select unit → select action). These are incompatible at the design level — porting requires ~200+ lines rewritten (network architecture, action selection, experience format, loss computation). Use PyPI 0.3.2 instead.
 
 ---
 

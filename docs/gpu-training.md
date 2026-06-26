@@ -105,6 +105,19 @@ The main loop had no version logging — impossible to tell if training was maki
 
 Previously, checkpoints were only saved on SIGTERM. If the process crashed, all progress was lost. Fixed: `save_model()` is now called every `checkpoint_interval` versions (default: 100) during training.
 
+## MicroRTS GPU notes
+
+MicroRTS has a CNN backbone and follows a slightly different GPU pattern than the MuJoCo MLPs:
+
+| Component | Device | Rationale |
+|---|---|---|
+| `MicroRTSNet` (main process) | CPU | `share_memory()` not called; weights synced via `state_dict()` |
+| `MicroRTSNet` (trainer) | GPU | `calculate_net.to(device)` in `MicroRTSCalculate.__init__` |
+| `update_state` | CPU | `torch.FloatTensor(grad)` — no `.to(DEVICE)`, params stay CPU |
+| `generate_grads` tensors | GPU | All intermediate tensors need explicit `.to(device=self.device)` |
+
+The CNN's `forward` does `x.permute((0, 3, 1, 2))` expecting `[N, H, W, C]` input. Ensure `reset()` returns `[N, H, W, C]` directly (gym_microrts 0.3.2 behavior — do NOT do `reset()[0]`).
+
 ## Potential Issues (monitoring)
 
 ### Multi-GPU collision
@@ -119,6 +132,7 @@ Without `CUDA_VISIBLE_DEVICES`, PyTorch defaults to `cuda:0` (physical GPU 0). O
 | HalfCheetah | 17 × 6 | 64 | 300 MiB |
 | Humanoid | 376 × 17 | 512 | 2-3 GiB |
 | Ant | 27 × 8 | 256 | 1 GiB |
+| MicroRTS | 10×10×27 | CNN+256 | 500 MiB |
 
 These are per-worker. In local mode with 1 trainer, expect ~1× model VRAM. The sampler and checker do CPU inference (envs are CPU-bound), so they don't consume GPU memory.
 
