@@ -4,7 +4,7 @@
 逻辑源自 ``grads_main/grads_main.py``。
 """
 from rl_server.utils.logging import Log
-from rl_server.utils.process import setup_seed, should_exit
+from rl_server.utils.process import should_exit
 from rl_server.utils.checkpoint import save_model, load_model
 from rl_server.transport.redis_cache import RedisCache
 from rl_server.algorithms import create_net

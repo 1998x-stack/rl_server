@@ -187,6 +187,51 @@ Each spawned worker (sampler, trainer, checker) starts its own JVM via JPype. Th
 
 The CoacAI opponent bot is bundled as `lib/bots/Coac.jar`. This JAR is in the gym_microrts package and included in the fat JAR we build. The `microrts_ai.coacAI` constant maps to this bot — it still exists in current gym_microrts.
 
+### 9. Observation shape: reset() return type changed
+
+Old API: `reset()` returns `(obs_list,)` — a tuple containing a list of N arrays, each `[H, W, C]`.
+New API: `reset()` returns a single numpy array `[N, H, W, C]`.
+
+Code like `self.obs = self.env.reset()[0]` breaks silently — it slices the FIRST env's observation `[H, W, C]` instead of the full batch `[N, H, W, C]`. The network then gets a 3D tensor when it expects 4D `[N, H, W, C]`.
+
+**Fix:**
+```python
+obs_result = self.env.reset()
+self.obs = obs_result[0] if isinstance(obs_result, tuple) else obs_result
+```
+
+### 10. step() action shape: grid-based vs hierarchical
+
+This is a **fundamental architectural difference** between the two APIs:
+
+| Aspect | Old API (MicroRTSVecEnv) | New API (MicroRTSGridModeVecEnv) |
+|---|---|---|
+| Action space | Hierarchical: select unit → select action | Grid-based: action per map cell |
+| Action shape | `[num_action_components, num_envs]` | `[num_envs, H*W, action_dim]` |
+| Mask API | `getUnitLocationMasks()`, `getUnitActionMasks(units)` | `getMasks(player)` returns `[N, H, W, 1+A+P]` |
+
+The rl_server PPO MicroRTS implementation (`microrts.py`) is architecturally coupled to the old hierarchical action space. **Porting it to the grid-based API requires rewriting:**
+- Network forward pass (logit shapes)
+- `get_action` / `_get_single_action` (action selection logic)
+- `sample_multi_envs` / `check_single_env` (experience storage format)
+- `MicroRTSCalculate.generate_grads` (loss computation from experiences)
+
+This is a ~200+ line refactor, not a drop-in fix. The old and new action semantics are incompatible at the design level.
+
+### 11. Mask caching pattern
+
+The new API's `getMasks(0)` calls Java via JPype on every invocation — expensive across hundreds of steps. The monkey-patch wrappers in the fixed microrts.py implement a cache-invalidate pattern:
+
+```python
+# After each env.step(), invalidate the mask cache
+self.env.invalidate_masks()
+
+# Next call to getUnitLocationMasks() or getUnitActionMasks()
+# triggers a fresh getMasks(0), caches the result, and indexes into it
+```
+
+This avoids duplicate JNI calls within a single step (both `getUnitLocationMasks` and `getUnitActionMasks` read from the same `getMasks(0)` result).
+
 ---
 
 ## GitHub Pages

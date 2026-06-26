@@ -13,7 +13,6 @@ from rl_server.utils.logging import Log
 from rl_server.utils.process import setup_mp, setup_seed, should_exit, setup_signal_handlers
 from rl_server.utils.checkpoint import save_model, load_model
 from rl_server.config.loader import load_config
-from rl_server.config.schema import validate_config
 from rl_server.algorithms import create_net
 from rl_server.workers.sampler import SamplerWorker
 from rl_server.workers.trainer import TrainerWorker

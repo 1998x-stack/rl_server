@@ -393,10 +393,7 @@ class MujocoNormalQCalculate(AlgoBaseCalculate):
         ratio3 = (ratio1 + ratio2) / 2
 
         # Policy loss
-        pg_loss1 = self.get_pg_loss(ratio1, t_advantages)
-        pg_loss2 = self.get_pg_loss(ratio2, t_advantages)
         pg_loss3 = self.get_pg_loss(ratio3, t_advantages)
-        pg_loss4 = (pg_loss1 + pg_loss2) / 2
 
         # Policy loss
         pg_loss = -pg_loss3.mean()

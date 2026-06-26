@@ -10,7 +10,6 @@ import numpy as np
 from gymnasium.spaces.box import Box
 from torch.distributions.normal import Normal
 from torch.nn import functional as F
-from torch.distributions.beta import Beta
 from types import SimpleNamespace
 
 from rl_server.core.base import AlgoBaseNet, AlgoBaseAgent, AlgoBaseCalculate, layer_init

@@ -8,7 +8,6 @@ import torch.nn as nn
 import gymnasium as gym
 import numpy as np
 from gymnasium.spaces.box import Box
-from torch.distributions.normal import Normal
 from torch.nn import functional as F
 from torch.distributions.beta import Beta
 from types import SimpleNamespace
@@ -391,10 +390,7 @@ class MujocoBetaCalculate(AlgoBaseCalculate):
         ratio3 = (GradCoef.apply(ratio1, ratio_coef) + GradCoef.apply(ratio2, 2.0 - ratio_coef)) / 2
 
         # Policy loss
-        pg_loss1 = self.get_pg_loss(ratio1, t_advantages)
-        pg_loss2 = self.get_pg_loss(ratio2, t_advantages)
         pg_loss3 = self.get_pg_loss(ratio3, t_advantages)
-        pg_loss4 = (pg_loss1 + pg_loss2) / 2
 
         # Policy loss
         pg_loss = -torch.mean(pg_loss3)
