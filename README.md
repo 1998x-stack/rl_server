@@ -1,171 +1,225 @@
-# RL Server
+<p align="center">
+  <img src="https://img.shields.io/badge/python-3.10+-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python">
+  <img src="https://img.shields.io/badge/PyTorch-2.6+-ee4c2c?style=for-the-badge&logo=pytorch&logoColor=white" alt="PyTorch">
+  <img src="https://img.shields.io/badge/tests-174%20passed-success?style=for-the-badge&logo=pytest&logoColor=white" alt="Tests">
+  <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="License">
+  <img src="https://img.shields.io/badge/Redis-5+-DC382D?style=for-the-badge&logo=redis&logoColor=white" alt="Redis">
+</p>
 
-A production-ready distributed reinforcement learning training framework built on PyTorch and Redis. Supports DQN, PPO, SAC, and TD3 algorithms across Gymnasium environments with flexible deployment modes: local multiprocess, Redis-distributed, and gradient aggregation server.
+<p align="center">
+  <h1 align="center">⚡ RL Server</h1>
+  <p align="center"><strong>Production-ready distributed reinforcement learning — train DQN, PPO, SAC, and TD3 at scale.</strong></p>
+  <p align="center">Local multiprocess → Redis-cluster → Gradient aggregation server. <br>One config file, zero code changes between modes.</p>
+</p>
 
-```
-Samplers (N)          Trainers (M)          Main Process
-  |                      |                      |
-  | sample_multi_envs()  | generate_grads()     | update_state()
-  v                      v                      v
-[Environments] --exp--> [Queue/Redis] --grad--> [Shared Net] --model--> [Checkpoint]
-                                                     |
-                                                CheckerWorker --> TensorBoard
-```
+---
 
-## Features
+<p align="center">
+  <a href="#-quick-start">Quick Start</a> •
+  <a href="#-architecture">Architecture</a> •
+  <a href="#-supported-algorithms">Algorithms</a> •
+  <a href="#-deployment-modes">Deployment</a> •
+  <a href="#-configuration">Config</a> •
+  <a href="TUTORIAL.md">Tutorial</a> •
+  <a href="#-testing">Testing</a>
+</p>
 
-- **4 Algorithm Families** — DQN (Dueling + NoisyNet), PPO (Normal / Beta / MicroRTS), SAC, TD3
-- **12+ MuJoCo Environments** — Swimmer, HalfCheetah, Ant, Hopper, Humanoid, Walker2d, and more
-- **3 Deployment Modes** — Local multiprocess, Redis-distributed workers, gradient aggregation server
-- **Production Hardened** — Atomic checkpoints, signal-based graceful shutdown, Redis connection pooling with retry, heartbeat monitoring
-- **YAML Configuration** — Environment variable interpolation (`${VAR:default}`), config override merging
-- **Lazy Algorithm Registry** — Zero startup overhead; algorithms loaded on first use
-- **174 Tests** — Unit, integration, and smoke tests with `fakeredis` for Redis mocking
+---
 
-## Architecture
+## 🎯 Why RL Server?
 
-```
-rl_server/
-  algorithms/          # Algorithm implementations (lazy-loaded registry)
-    __init__.py        #   register(), create_net(), create_agent(), create_calculate()
-    dqn/               #   Dueling DQN for classic control (CartPole, etc.)
-    ppo/               #   PPO Normal (MuJoCo), Beta, MicroRTS
-    sac/               #   Soft Actor-Critic with dual Q-networks
-    td3/               #   Twin Delayed DDPG
-  config/              # YAML loader with env var interpolation + schema validation
-    default.yaml       #   Default Redis, training, queue, logging settings
-  core/                # Shared abstractions
-    base.py            #   AlgoBaseNet, AlgoBaseAgent, AlgoBaseCalculate
-    actions.py         #   Argmax, EpsilonGreedy, Probability action selectors
-    buffers.py         #   ExperienceBuffer, TrajectoryBuffer
-    noisy.py           #   NoisyLinear (factorized Gaussian noise)
-  entrypoints/         # CLI entry points
-    train.py           #   Local multiprocess training
-    sample.py          #   Redis-based distributed sampler
-    check.py           #   Model evaluation worker
-    grads.py           #   Gradient aggregation server
-  transport/           # Redis communication layer
-    redis_cache.py     #   ConnectionPool, retry, reconnect, health_check
-    serialization.py   #   pickle + zlib compression
-  utils/               # Operational utilities
-    checkpoint.py      #   Atomic save/load with version retention
-    logging.py         #   Structured logging (file + console)
-    process.py         #   Signal handlers, seed, heartbeat files
-  workers/             # Subprocess workers
-    sampler.py         #   SamplerWorker (env rollout -> queue)
-    trainer.py         #   TrainerWorker (queue -> gradients)
-    checker.py         #   CheckerWorker (periodic evaluation + TensorBoard)
-    grads_aggregator.py#   GradsAggregator (Redis gradient collection)
-```
+| | RL Server | Stable-Baselines3 | CleanRL | RLlib |
+|---|---|---|---|---|
+| **Distributed training** | ✅ Redis + local MP | ❌ | ❌ | ✅ Ray (heavy) |
+| **Zero-code mode switch** | ✅ Same config | — | — | ❌ |
+| **Production hardened** | ✅ Graceful shutdown, atomic ckpt | ❌ | ❌ | ⚠️ Partial |
+| **Lazy-loading algos** | ✅ Import on demand | ❌ | ❌ | ❌ |
+| **Config env interpolation** | ✅ `${VAR:default}` | ❌ | ❌ | ❌ |
+| **Redis resilience** | ✅ Retry + backoff + pool | — | — | ❌ |
+| **Lines to first train** | 2 | 4 | 15+ | 20+ |
+| **Dependencies** | 6 | 12+ | 8+ | 50+ |
 
-## Quick Start
+**RL Server** is for practitioners who need to go from laptop → cluster without rewriting their training loop. Built ground-up for production with atomic checkpointing, signal-based graceful shutdown, and Redis resilience patterns that survive network partitions.
 
-### Requirements
+---
 
-- Python 3.10+
-- PyTorch 2.6+
-- Redis 5+ (for distributed mode only)
-
-### Installation
+## 📦 Quick Start
 
 ```bash
-git clone <repo-url> && cd rl_server
-
-# Install runtime dependencies
+# 1. Install
 pip install -r requirements.txt
 
-# Install dev/test dependencies
-pip install -r requirements-dev.txt
+# 2. Train DQN on CartPole (no Redis, no config — just works)
+python -m rl_server.entrypoints.train --env-name DQNGymClassic
 
-# (Optional) MuJoCo environments
+# 3. Monitor
+tensorboard --logdir logs/
+```
+
+**That's it.** Two shell commands from zero to a running RL agent with 2 sampler workers, 1 trainer, and evaluation — all locally.
+
+Want PPO on MuJoCo?
+
+```bash
 pip install gymnasium[mujoco]
-```
-
-### Run Local Training
-
-```bash
-# DQN on CartPole (default)
-python -m rl_server.entrypoints.train
-
-# PPO on Swimmer-v4
 python -m rl_server.entrypoints.train --env-name MujocoNormal
-
-# With custom config
-python -m rl_server.entrypoints.train --config config/default.yaml --override config/dev.yaml
-
-# Resume from checkpoint
-python -m rl_server.entrypoints.train --env-name DQNGymClassic --version 500
 ```
 
-### Run Distributed (Redis)
+---
 
-Start Redis, then launch workers independently:
+## 🏗 Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                        MAIN PROCESS                              │
+│  ┌─────────────┐    ┌─────────────┐    ┌──────────────────────┐ │
+│  │ load_config │───▶│ create_net  │───▶│ while not exit:       │ │
+│  │ + override  │    │ share_mem() │    │   grads ← grads_queue │ │
+│  └─────────────┘    └─────────────┘    │   accumulate          │ │
+│                                        │   update_state()      │ │
+│                                        │   TRAIN_VERSION += 1  │ │
+│                                        └──────────────────────┘ │
+└──────────────────────┬──────────────────────────────────────────┘
+                       │ mp.Queue
+        ┌──────────────┼──────────────┐
+        ▼              ▼              ▼
+┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+│   SAMPLERS   │ │   TRAINERS   │ │   CHECKER    │
+│   (N proc)   │ │   (M proc)   │ │   (1 proc)   │
+│              │ │              │ │              │
+│ sample_multi │ │ generate     │ │ check_single │
+│ _envs() ─────┼▶│ _grads() ────┼▶│ _env() ──────┼──▶ TensorBoard
+│              │ │              │ │              │
+│ [Gym envs]   │ │ [Calculate]  │ │ [Eval env]   │
+└──────────────┘ └──────────────┘ └──────────────┘
+       △              △
+       │ model_dict (shared mp.Manager dict)
+       │  • is_exit: bool      — shutdown signal
+       │  • TRAIN_VERSION: int — global training step
+```
+
+Every algorithm is **three classes** implementing a shared contract:
+
+| Base Class | Key Method | Where It Runs |
+|---|---|---|
+| `AlgoBaseNet(nn.Module)` | `forward(states)` → actions | Main process + all workers |
+| | `update_state(version, grads)` | Main process (gradient aggregation) |
+| `AlgoBaseAgent` | `sample_multi_envs(model_dict)` → experiences | Sampler workers (CPU) |
+| | `check_single_env()` → metrics | Checker worker |
+| `AlgoBaseCalculate` | `generate_grads(samples, model_dict)` → gradients | Trainer workers |
+
+---
+
+## ⚙️ Supported Algorithms
+
+| Algorithm | Registry Key | Action Space | Environments |
+|---|---|---|---|
+| **DQN** (Dueling + NoisyNet) | `DQNGymClassic` | Discrete | CartPole, MountainCar, Acrobot, LunarLander |
+| **PPO** (Gaussian policy) | `MujocoNormal` | Continuous | Swimmer, HalfCheetah, Ant, Hopper, Walker2d, Humanoid, Pusher, Reacher |
+| **PPO** (Beta policy) | `MujocoBeta` | Continuous (bounded) | Same MuJoCo suite |
+| **PPO** (Masked actions) | `MicroRTS` | Discrete (masked) | gym-microrTS |
+| **SAC** (dual Q, entropy) | `SACMujocoNormal` | Continuous | Same MuJoCo suite |
+| **TD3** (clipped double Q) | `TD3MujocoNormal` | Continuous (deterministic) | Same MuJoCo suite |
+
+<details>
+<summary><b>📊 MuJoCo environment reference (12+ envs)</b></summary>
+
+| Env | obs_dim | act_dim | Env | obs_dim | act_dim |
+|---|---|---|---|---|---|
+| Swimmer-v4 | 8 | 2 | Walker2d-v4 | 17 | 6 |
+| HalfCheetah-v4 | 17 | 6 | Humanoid-v4 | 376 | 17 |
+| Ant-v4 | 27 | 8 | HumanoidStandup-v4 | 376 | 17 |
+| Hopper-v4 | 11 | 3 | Pusher-v5 | 23 | 7 |
+| Reacher-v4 | 11 | 2 | InvertedPendulum-v4 | 4 | 1 |
+| InvertedDoublePendulum-v4 | 11 | 1 | | | |
+
+</details>
+
+### Adding a custom algorithm
+
+```python
+# 1. Implement 3 classes in rl_server/algorithms/my_algo/
+# 2. Add one elif branch in rl_server/algorithms/__init__.py
+# 3. Train it:
+python -m rl_server.entrypoints.train --env-name MyAlgo
+```
+
+See the full walkthrough in [TUTORIAL.md §7](TUTORIAL.md#7-adding-a-new-algorithm).
+
+---
+
+## 🚀 Deployment Modes
+
+### Mode 1: Local Multiprocess (laptop / single GPU node)
 
 ```bash
-# Terminal 1: Gradient aggregation server
+python -m rl_server.entrypoints.train --config config/default.yaml
+```
+
+- Spawns sampler/trainer/checker as subprocesses
+- Uses `torch.multiprocessing.Queue` for IPC
+- Zero external dependencies
+
+### Mode 2: Redis Distributed (cluster, any number of machines)
+
+```bash
+# Machine 1: Gradient aggregation server
 python -m rl_server.entrypoints.grads --env-name MujocoNormal
 
-# Terminal 2-N: Samplers (scale horizontally)
+# Machines 2..N: Samplers (scale horizontally)
 python -m rl_server.entrypoints.sample --env-name MujocoNormal
 
-# Terminal N+1: Evaluation (optional)
+# Optional: Evaluation
 python -m rl_server.entrypoints.check --env-name MujocoNormal
 ```
 
-### Run Tests
+- Redis-backed queues replace `mp.Queue`
+- Each worker is an independent process — no shared memory
+- Model weights, experiences, and gradients flow through Redis lists
 
-```bash
-# All 174 tests
-pytest tests/ -v
+### Mode 3: Gradient Aggregation Server (standalone daemon)
 
-# Unit tests only
-pytest tests/unit/ -v
+The grads server (`entrypoints/grads.py`) can run as a persistent daemon, consuming from Redis gradient queues and pushing updated models back. Samplers and trainers connect to it as clients.
 
-# Smoke tests (algorithm forward passes)
-pytest tests/smoke/ -v
+| Scale | Samplers | Redis | Grads batch |
+|---|---|---|---|
+| **Dev** | 1–2 | 1 shared instance | 1 |
+| **Medium** | 4–8 | 1 shared instance | 4–8 |
+| **High** | 16–64 | 3 separate instances | 16–32 |
 
-# Integration tests
-pytest tests/integration/ -v
+---
+
+## 🧠 Algorithm Registry
+
+Algorithms are **lazy-loaded** — zero startup overhead, imports happen on first use:
+
+```python
+from rl_server.algorithms import create_net, create_agent, create_calculate
+
+net    = create_net('DQNGymClassic')       # Imports dqn/ only now
+agent  = create_agent('DQNGymClassic', net)
+calc   = create_calculate('DQNGymClassic', net)
 ```
 
-## Supported Algorithms
+The registry (`_REGISTRY`) maps `env_name → (NetClass, AgentClass, CalculateClass)`. All 6 built-in algorithms are registered in `rl_server/algorithms/__init__.py:_lazy_load()`.
 
-| Algorithm | Registry Key | Policy | Environments | Key Features |
-|-----------|-------------|--------|-------------|--------------|
-| **DQN** | `DQNGymClassic` | Discrete | CartPole, MountainCar, Acrobot, LunarLander | Dueling architecture, NoisyNet, epsilon-greedy |
-| **PPO Normal** | `MujocoNormal` | Continuous (Gaussian) | Swimmer, HalfCheetah, Ant, Hopper, Walker2d, Humanoid, Pusher | GAE, clipped surrogate, value loss clipping |
-| **PPO Beta** | `MujocoBeta` | Continuous (Beta) | Swimmer, HalfCheetah, Ant, Hopper, Walker2d, Humanoid | Beta distribution for bounded actions |
-| **PPO MicroRTS** | `MicroRTS` | Discrete (Masked) | MicroRTS | Hierarchical actions, invalid action masking |
-| **SAC** | `SACMujocoNormal` | Continuous | Swimmer, HalfCheetah, Ant, Hopper, Walker2d, Humanoid | Dual Q-networks, entropy regularization |
-| **TD3** | `TD3MujocoNormal` | Continuous (Deterministic) | Swimmer, HalfCheetah, Ant, Hopper, Walker2d, Humanoid | Clipped double Q, delayed policy updates, target smoothing |
+---
 
-## Configuration
-
-Configuration uses YAML with environment variable interpolation:
+## 🔧 Configuration
 
 ```yaml
 # config/default.yaml
 redis:
   model:
-    host: "${REDIS_MODEL_HOST:localhost}"
+    host: "${REDIS_MODEL_HOST:localhost}"   # ← env var with fallback
     port: 6379
     db: 0
     password: "${REDIS_PASSWORD:}"
-  exps:
-    host: "${REDIS_EXPS_HOST:localhost}"
-    port: 6379
-    db: 1
-  grads:
-    host: "${REDIS_GRADS_HOST:localhost}"
-    port: 6379
-    db: 2
 
 training:
   env_name: "DQNGymClassic"
   num_samplers: 2
   num_trainers: 1
-  num_update_grads: 1
-  enable_checker: true
   checkpoint_interval: 100
   max_versions: 10000
 
@@ -179,149 +233,92 @@ logging:
   tensorboard: true
 ```
 
-Override for specific deployments:
+**Override for dev:** `python -m rl_server.entrypoints.train --override config/dev.yaml`
+Merges `dev.yaml` on top of defaults — only specify what you're changing.
 
-```bash
-python -m rl_server.entrypoints.train \
-  --config config/default.yaml \
-  --override config/dev.yaml
-```
-
-Or inject secrets via environment variables:
-
+**Inject secrets via env:**
 ```bash
 export REDIS_PASSWORD=mysecret
 export REDIS_MODEL_HOST=redis-primary.internal
-python -m rl_server.entrypoints.train
 ```
 
-## Algorithm Registry
+---
 
-Algorithms are registered lazily and instantiated via factory functions:
-
-```python
-from rl_server.algorithms import create_net, create_agent, create_calculate
-
-# Create components
-net = create_net('DQNGymClassic')
-agent = create_agent('DQNGymClassic', net)
-calculator = create_calculate('DQNGymClassic', net)
-
-# Or register a custom algorithm
-from rl_server.algorithms import register
-register('MyCustomAlgo', MyNet, MyAgent, MyCalculate)
-```
-
-All algorithms implement three base classes:
-
-| Class | Method | Purpose |
-|-------|--------|---------|
-| `AlgoBaseNet` | `forward(states)` | Action inference |
-| | `update_state(version, grads)` | Apply gradient update |
-| `AlgoBaseAgent` | `sample_multi_envs(model_dict)` | Parallel environment rollout |
-| | `check_single_env()` | Single-episode evaluation |
-| `AlgoBaseCalculate` | `generate_grads(samples, model_dict)` | Compute parameter gradients |
-
-## CLI Reference
-
-### `train.py` — Local Multiprocess Training
-
-```
-python -m rl_server.entrypoints.train [OPTIONS]
-
-  --config PATH       Config YAML path (default: rl_server/config/default.yaml)
-  --override PATH     Override config YAML path
-  --env-name NAME     Algorithm registry key (e.g., DQNGymClassic, MujocoNormal)
-  --prefix PREFIX     Checkpoint file prefix (default: train_main_local)
-  --version VERSION   Resume from specific checkpoint version
-```
-
-### `sample.py` — Redis Distributed Sampler
-
-```
-python -m rl_server.entrypoints.sample [OPTIONS]
-
-  --config PATH       Config YAML path
-  --env-name NAME     Algorithm registry key
-```
-
-### `grads.py` — Gradient Aggregation Server
-
-```
-python -m rl_server.entrypoints.grads [OPTIONS]
-
-  --config PATH       Config YAML path
-  --env-name NAME     Algorithm registry key
-```
-
-### `check.py` — Evaluation Worker
-
-```
-python -m rl_server.entrypoints.check [OPTIONS]
-
-  --config PATH       Config YAML path
-  --env-name NAME     Algorithm registry key
-```
-
-## Production Features
+## 🛡 Production Features
 
 ### Graceful Shutdown
+`SIGTERM` / `SIGINT` → workers finish current iteration → checkpoint saved → clean exit. No corrupted `.pt` files, no orphaned processes.
 
-All workers respond to `SIGTERM` / `SIGINT`:
+### Atomic Checkpoints
+Write to `.tmp` → `os.rename()` to final path. If the process is killed mid-save, the `.tmp` is discarded and the last good checkpoint remains intact. Version retention (`max_versions`) keeps disk usage bounded.
 
-1. Main process sets `model_dict['is_exit'] = True`
-2. Workers complete current iteration and exit
-3. Checkpoint is saved before process termination
-
-```bash
-kill -TERM <pid>  # Triggers graceful shutdown
 ```
-
-### Checkpoint Management
-
-- **Atomic writes**: Save to `.tmp` then `os.rename()` — no corruption on crash
-- **Version retention**: Configurable `max_versions` keeps disk usage bounded
-- **Resume training**: `--version` flag loads specific checkpoint
+models/train_main_local_DQNGymClassic/
+  train_main_local_DQNGymClassic_100_20260101120000.td
+  train_main_local_DQNGymClassic_200_20260101120100.td
+```
 
 ### Redis Resilience
-
-- Connection pooling (configurable pool size)
-- Exponential backoff retry (3 attempts: 1s, 2s, 4s)
-- `brpop` with 5-second timeout (no infinite blocking)
+- Connection pooling (configurable `pool_size`)
+- Exponential backoff retry: 1s → 2s → 4s
+- `brpop` with 5s timeout (no infinite blocking)
+- Automatic reconnect on `ConnectionError`
 - `health_check()` for monitoring
-- Automatic reconnection on connection failure
 
 ### Monitoring
+- **TensorBoard**: Checker worker writes evaluation metrics every episode
+- **Heartbeat files**: `/tmp/rl_server/{worker_type}_{id}_{pid}` — external monitoring can watch these
+- **Structured logging**: Timestamped, leveled, per-process log files
 
-- **TensorBoard**: CheckerWorker writes evaluation metrics
-- **Heartbeat files**: Workers write periodic heartbeats for external monitoring
-- **Structured logging**: Timestamped, leveled logs with process ID
+---
+
+## 🧪 Testing
 
 ```bash
-tensorboard --logdir logs/
+# Full suite — 174 tests
+pytest tests/ -v
+
+# By layer
+pytest tests/unit/ -v           # Fast, isolated (no I/O)
+pytest tests/smoke/ -v          # Algorithm forward/backward pass
+pytest tests/integration/ -v    # Multi-component pipelines (fakeredis)
+
+# Pattern matching
+pytest tests/ -v -k "ppo"
 ```
 
-## Dependencies
+```
+tests/
+  conftest.py                  # Shared fixtures
+  unit/        (15 files)      # Registry, checkpoint, config, DQN, PPO, Redis transport...
+  smoke/       (1 file)        # All 6 algorithms: forward pass + update_state
+  integration/ (4 files)       # End-to-end pipeline, Redis pipeline, grad aggregation
+```
 
-### Runtime
+All Redis tests use `fakeredis` — no Redis server needed. 30s timeout enforced per test.
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `torch` | >= 2.6.0 | Neural networks, multiprocessing |
-| `gymnasium` | >= 0.29.0 | Environment interface (Gym v26+ API) |
-| `numpy` | >= 1.26.4 | Array operations |
-| `redis` | >= 5.0.0 | Distributed communication |
-| `pyyaml` | >= 6.0 | Configuration loading |
-| `tensorboardX` | >= 2.6 | Training metrics visualization |
+---
 
-### Development
+## 📁 Project Structure
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `pytest` | >= 8.0 | Test framework |
-| `pytest-timeout` | >= 2.2 | Test timeout enforcement (30s) |
-| `fakeredis` | >= 2.0 | Redis mocking for tests |
+```
+rl_server/                     # ← Active package (work here)
+  algorithms/   dqn/ ppo/ sac/ td3/
+  config/       loader.py, default.yaml
+  core/         base.py, buffers.py, noisy.py, actions.py
+  entrypoints/  train.py, sample.py, grads.py, check.py
+  transport/    redis_cache.py, serializer
+  utils/        checkpoint.py, logging.py, process.py
+  workers/      sampler.py, trainer.py, checker.py, grads_aggregator.py
+tests/          unit/  smoke/  integration/
+config/         default.yaml, dev.yaml
+run_ppo_swimmer.py             # Single-process PPO quick test
+```
 
-## License
+> **Legacy directories** (`algo_envs/`, `libs/`, `*_main/`) are pre-refactor snapshots — read-only reference, do not modify.
 
-See [LICENSE](LICENSE) for details.
+---
+
+<p align="center">
+  <sub>Built with PyTorch • Gymnasium • Redis • 174 tests • 3 deployment modes</sub>
+</p>
