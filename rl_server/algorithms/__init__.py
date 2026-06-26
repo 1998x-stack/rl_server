@@ -102,6 +102,9 @@ def _lazy_load(env_name: str):
             from rl_server.algorithms.dqn.agent import DQNGymClassicAgent
             from rl_server.algorithms.dqn.calculator import DQNGymClassicCalculate
             register(env_name, DQNGymClassicNet, DQNGymClassicAgent, DQNGymClassicCalculate)
+        elif env_name == 'DQNAtari':
+            from rl_server.algorithms.dqn.atari import AtariDQNNet, AtariDQNAgent, AtariDQNCalculate
+            register(env_name, AtariDQNNet, AtariDQNAgent, AtariDQNCalculate)
         elif env_name == 'MujocoNormal':
             from rl_server.algorithms.ppo.mujoco_normal import MujocoNormalNet, MujocoNormalAgent, MujocoNormalCalculate
             register(env_name, MujocoNormalNet, MujocoNormalAgent, MujocoNormalCalculate)
