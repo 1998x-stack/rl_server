@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 """MuJoCo 连续控制上的 SAC：双 Q 网络、高斯策略与温度参数。
-
-实现源自 ``algo_envs/sac_mujoco_normal.py``。
 """
 import torch
 import torch.nn as nn

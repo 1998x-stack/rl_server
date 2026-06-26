@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 """Integration tests: multi-component flows without real Redis or processes."""
-import os
-import sys
 import torch
 import numpy as np
 import pytest

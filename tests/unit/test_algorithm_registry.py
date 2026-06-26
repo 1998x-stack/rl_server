@@ -71,4 +71,4 @@ class TestAlgorithmRegistry:
     def test_lazy_load_idempotent(self):
         net1 = create_net('DQNGymClassic')
         net2 = create_net('DQNGymClassic')
-        assert type(net1) == type(net2)
+        assert isinstance(net1, type(net2))

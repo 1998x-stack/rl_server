@@ -1,12 +1,6 @@
-"""``libs.redis_cache`` / Redis 封装单元测试。"""
-import os
-import sys
+"""``rl_server.transport.redis_cache`` / Redis 封装单元测试。"""
 import torch
 import pytest
-import pickle
-import zlib
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 try:
     import fakeredis
@@ -14,14 +8,14 @@ try:
 except ImportError:
     HAS_FAKEREDIS = False
 
-from libs.log import Log
+from rl_server.utils.logging import Log
 
 
 @pytest.fixture
 def fake_redis_cache():
     if not HAS_FAKEREDIS:
         pytest.skip("fakeredis not installed")
-    from libs.redis_cache import RedisCache
+    from rl_server.transport.redis_cache import RedisCache
     log = Log("test_redis")
     config = {'ip': 'localhost', 'port': '6379', 'db': '0', 'pw': ''}
     cache = RedisCache.__new__(RedisCache)
@@ -101,7 +95,7 @@ class TestRedisCache:
         assert cache.health_check() is True
 
     def test_version_name_constants(self):
-        from libs.redis_cache import RedisCache
+        from rl_server.transport.redis_cache import RedisCache
         assert RedisCache.version_name == 'version'
         assert RedisCache.model_name == 'model'
         assert RedisCache.exps_name == 'exps'

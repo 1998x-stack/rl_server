@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 """Sampler 工作者：在子进程中与环境交互并将经验写入样本队列。
-
-逻辑源自 ``train_main_local/sampler.py``。
 """
 import time
 import queue

@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 """MuJoCo 连续控制上的 PPO：Beta 分布策略（有界动作）与价值网络。
-
-实现源自 ``algo_envs/ppo_mujoco_beta.py``。
 """
 import torch
 import torch.nn as nn

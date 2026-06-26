@@ -1,12 +1,8 @@
 """DQN 网络、智能体与计算器单元测试。"""
-import os
-import sys
 import torch
 import numpy as np
-import pytest
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-from algo_envs.dqn_gym_classic import DQNGymClassicNet
+from rl_server.algorithms.dqn.network import DQNGymClassicNet
 
 
 class TestDQNGymClassicNet:

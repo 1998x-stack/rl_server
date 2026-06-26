@@ -1,11 +1,8 @@
 """经验缓冲区单元测试。"""
-import os
-import sys
 import numpy as np
 import pytest
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-from libs.exps import Experience, ExperienceBuffer, TrajectoryBuffer
+from rl_server.core.buffers import Experience, ExperienceBuffer, TrajectoryBuffer
 
 
 class TestExperienceBuffer:

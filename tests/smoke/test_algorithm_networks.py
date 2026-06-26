@@ -2,7 +2,6 @@
 """Smoke tests for all algorithm network forward passes and update_state."""
 import torch
 import numpy as np
-import pytest
 
 
 class TestDQNSmoke:

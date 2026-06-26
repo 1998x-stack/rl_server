@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 """YAML 配置加载器：支持覆盖文件合并与环境变量插值。
-
-实现思路源自 ``libs/config_loader.py``，用于在部署时通过 ``${VAR:default}`` 注入密钥与主机名。
 """
 import os
 import re

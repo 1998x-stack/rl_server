@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 """强化学习算法抽象基类：网络、智能体与梯度计算器接口。
-
-从 ``algo_envs/algo_base.py`` 抽取，供各具体环境与算法实现继承。
 """
 import numpy as np
 import torch.nn as nn

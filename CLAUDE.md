@@ -95,21 +95,10 @@ All values are `pickle + zlib.compress`. `brpop` uses 5s timeout. Writes have 3-
 ```
 rl_server/
   algorithms/       # Algorithm impls: dqn/, ppo/ (3 variants), sac/, td3/
-  config/           # YAML loader + default.yaml
+  config/           # YAML loader + default.yaml + dev.yaml
   core/             # AlgoBaseNet/Agent/Calculate, buffers, noisy layers, action selectors
   entrypoints/      # CLI scripts: train.py, sample.py, grads.py, check.py
   transport/        # RedisCache (Redis ops), serialization (pickle+zlib)
   utils/            # checkpoint, logging, process (signals/seeds/heartbeats)
   workers/          # SamplerWorker, TrainerWorker, CheckerWorker, GradsAggregator
-
-algo_envs/          # LEGACY — original monolithic algo files, kept for reference
-libs/               # LEGACY — original lib modules before rl_server/ package split
-check_main/         # LEGACY — original checker entrypoint
-grads_main/         # LEGACY — original grads server entrypoint
-sample_main/        # LEGACY — original Redis sampler entrypoint
-train_main_local/   # LEGACY — original local training entrypoint
-train_main_grads/   # LEGACY — original grads training entrypoint
-train_main_redis/   # LEGACY — original Redis training entrypoint
 ```
-
-The `rl_server/` package is the active code. The `algo_envs/`, `libs/`, and `*_main*/` directories are pre-refactor snapshots. Always work in `rl_server/` — do not modify the legacy directories.

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """MuJoCo 连续控制上的 PPO：高斯策略、价值头、GAE 与 clip 目标。
 
-``TRAIN_ENVS`` 定义各任务的观测/动作维度；实现源自 ``algo_envs/ppo_mujoco_normal.py``。
+``TRAIN_ENVS`` 定义各任务的观测/动作维度。
 """
 import torch
 import torch.nn as nn

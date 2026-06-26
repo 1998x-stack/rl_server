@@ -1,12 +1,8 @@
-"""``algo_envs.algo_base`` 基类与工具单元测试。"""
-import os
-import sys
+"""强化学习算法基类与工具单元测试。"""
 import torch
-import numpy as np
-import pytest
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-from algo_envs.algo_base import NoisyLinear, layer_init, AlgoBaseNet, GradCoef
+from rl_server.core.base import layer_init
+from rl_server.core.noisy import NoisyLinear, GradCoef
 
 
 class TestNoisyLinear:

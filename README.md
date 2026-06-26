@@ -153,7 +153,7 @@ See the full walkthrough in [TUTORIAL.md §7](TUTORIAL.md#7-adding-a-new-algorit
 ### Mode 1: Local Multiprocess (laptop / single GPU node)
 
 ```bash
-python -m rl_server.entrypoints.train --config config/default.yaml
+python -m rl_server.entrypoints.train --config rl_server/config/default.yaml
 ```
 
 - Spawns sampler/trainer/checker as subprocesses
@@ -233,7 +233,7 @@ logging:
   tensorboard: true
 ```
 
-**Override for dev:** `python -m rl_server.entrypoints.train --override config/dev.yaml`
+**Override for dev:** `python -m rl_server.entrypoints.train --override rl_server/config/dev.yaml`
 Merges `dev.yaml` on top of defaults — only specify what you're changing.
 
 **Inject secrets via env:**
@@ -255,7 +255,6 @@ Write to `.tmp` → `os.rename()` to final path. If the process is killed mid-sa
 ```
 models/train_main_local_DQNGymClassic/
   train_main_local_DQNGymClassic_100_20260101120000.td
-  train_main_local_DQNGymClassic_200_20260101120100.td
 ```
 
 ### Redis Resilience
@@ -302,20 +301,17 @@ All Redis tests use `fakeredis` — no Redis server needed. 30s timeout enforced
 ## 📁 Project Structure
 
 ```
-rl_server/                     # ← Active package (work here)
+rl_server/                     
   algorithms/   dqn/ ppo/ sac/ td3/
-  config/       loader.py, default.yaml
+  config/       loader.py, default.yaml, dev.yaml
   core/         base.py, buffers.py, noisy.py, actions.py
   entrypoints/  train.py, sample.py, grads.py, check.py
   transport/    redis_cache.py, serializer
   utils/        checkpoint.py, logging.py, process.py
   workers/      sampler.py, trainer.py, checker.py, grads_aggregator.py
 tests/          unit/  smoke/  integration/
-config/         default.yaml, dev.yaml
 run_ppo_swimmer.py             # Single-process PPO quick test
 ```
-
-> **Legacy directories** (`algo_envs/`, `libs/`, `*_main/`) are pre-refactor snapshots — read-only reference, do not modify.
 
 ---
 

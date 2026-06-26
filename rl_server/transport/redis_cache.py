@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 """Redis 封装：分布式训练中的模型版本、经验队列、梯度队列与退出标志。
-
-从 ``libs/redis_cache.py`` 迁移并更新导入路径；对连接错误提供有限次指数退避重试。
 """
 import redis
 import zlib

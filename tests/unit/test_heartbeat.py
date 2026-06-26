@@ -2,8 +2,6 @@
 """Tests for heartbeat utilities in rl_server.utils.process."""
 import os
 import time
-import tempfile
-from unittest import mock
 
 from rl_server.utils.process import write_heartbeat, cleanup_heartbeat, HEARTBEAT_DIR
 

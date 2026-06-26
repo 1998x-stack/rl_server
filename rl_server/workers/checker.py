@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 """Checker 工作者：周期性加载共享权重并在环境中评估，写入 TensorBoard。
-
-逻辑源自 ``check_main/checker.py``。
 """
 import time
 import torch.nn as nn

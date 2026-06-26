@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for worker construction and safe teardown (no process spawning)."""
-import torch
 import torch.nn as nn
-import pytest
 from unittest.mock import MagicMock
 
 from rl_server.utils.logging import Log

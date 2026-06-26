@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 """动作选择器：将 Q 值、 logits 或概率向量映射为离散动作。
-
-从 ``libs/actions.py`` 迁移，已移除对 ``sys.path`` 的修改。
 """
 import numpy as np
 from typing import Union

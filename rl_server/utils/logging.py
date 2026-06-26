@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
 """结构化日志：按进程名写入旋转文件并可选输出到控制台。
 
-接口兼容旧版 ``libs/log.py`` 的 ``log_info`` / ``log_exception``，
-同时提供标准 ``debug`` / ``info`` / ``warning`` / ``error`` / ``exception``。
-
 重复异常自动折叠，避免循环中的异常刷爆日志文件。
 """
 import os

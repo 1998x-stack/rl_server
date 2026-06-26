@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 """带噪线性层与自定义梯度缩放：用于探索与分布式训练中的梯度处理。
-
-从 ``algo_envs/algo_base.py`` 抽取。
 """
 import math
 import torch

@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 """经典 Gym 控制环境的 Dueling DQN 网络定义。
 
-环境维度与隐藏层规模由 ``TRAIN_ENVS`` 与全局 ``current_env_name`` 决定；
-实现源自 ``algo_envs/dqn_gym_classic.py``，已改用 ``rl_server`` 导入。
+环境维度与隐藏层规模由 ``TRAIN_ENVS`` 与全局 ``current_env_name`` 决定。
 """
 import torch
 import torch.nn as nn

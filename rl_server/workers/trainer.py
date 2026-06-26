@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 """Trainer 工作者：从队列读取样本批次，计算梯度并写回梯度队列。
-
-逻辑源自 ``train_main_local/trainer.py``，已改用 ``rl_server`` 包内导入。
 """
 import time
 import queue

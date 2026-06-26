@@ -5,7 +5,6 @@ import time
 import glob
 import torch
 import torch.nn as nn
-import pytest
 
 from rl_server.utils.checkpoint import save_model, load_model, get_model_state_path
 

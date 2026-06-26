@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 """MuJoCo 连续控制上的 TD3：双 Q、延迟策略更新与目标策略平滑。
-
-实现源自 ``algo_envs/td3_mujoco_normal.py``。
 """
 import torch
 import torch.nn as nn

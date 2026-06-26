@@ -1,12 +1,8 @@
 """MuJoCo PPO 网络与计算器单元测试。"""
-import os
-import sys
 import torch
 import numpy as np
-import pytest
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-from algo_envs.ppo_mujoco_normal import MujocoNormalNet, TRAIN_ENVS, current_env_name
+from rl_server.algorithms.ppo.mujoco_normal import MujocoNormalNet, TRAIN_ENVS, current_env_name
 
 
 # Get dimensions from current config

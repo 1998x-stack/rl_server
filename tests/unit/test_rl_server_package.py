@@ -4,19 +4,19 @@ import pytest
 
 class TestPackageImports:
     def test_core_imports(self):
-        from rl_server.core.base import AlgoBaseNet, AlgoBaseAgent, AlgoBaseCalculate, layer_init
+        from rl_server.core.base import AlgoBaseNet
         assert AlgoBaseNet is not None
 
     def test_core_actions(self):
-        from rl_server.core.actions import ArgmaxActionSelector, EpsilonGreedyActionSelector, ProbabilityActionSelector
+        from rl_server.core.actions import ArgmaxActionSelector
         assert ArgmaxActionSelector is not None
 
     def test_core_buffers(self):
-        from rl_server.core.buffers import Experience, ExperienceBuffer, TrajectoryBuffer
+        from rl_server.core.buffers import Experience
         assert Experience is not None
 
     def test_core_noisy(self):
-        from rl_server.core.noisy import NoisyLinear, GradCoef
+        from rl_server.core.noisy import NoisyLinear
         assert NoisyLinear is not None
 
     def test_transport_serialization(self):
@@ -27,7 +27,7 @@ class TestPackageImports:
         assert result == data
 
     def test_config_loader(self):
-        from rl_server.config.loader import load_config, interpolate_env_vars
+        from rl_server.config.loader import load_config
         assert load_config is not None
 
     def test_config_schema(self):
@@ -44,19 +44,19 @@ class TestPackageImports:
             validate_config({})
 
     def test_utils_process(self):
-        from rl_server.utils.process import setup_seed, should_exit, write_heartbeat, cleanup_heartbeat
+        from rl_server.utils.process import setup_seed
         assert setup_seed is not None
 
     def test_utils_checkpoint(self):
-        from rl_server.utils.checkpoint import save_model, load_model
+        from rl_server.utils.checkpoint import save_model
         assert save_model is not None
 
     def test_utils_logging(self):
-        from rl_server.utils.logging import Log, setup_logging
+        from rl_server.utils.logging import Log
         assert Log is not None
 
     def test_algorithms_registry(self):
-        from rl_server.algorithms import create_net, create_agent, create_calculate
+        from rl_server.algorithms import create_net
         net = create_net('DQNGymClassic')
         assert net is not None
         params = list(net.parameters())

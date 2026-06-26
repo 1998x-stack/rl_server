@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 """MicroRTS 上的 PPO：掩码分类分布、向量环境与多段动作空间。
-
-实现源自 ``algo_envs/ppo_microrts.py``。
 """
 import torch
 import torch.nn as nn

@@ -1,11 +1,7 @@
-"""``libs.utils`` 工具函数单元测试。"""
-import os
-import sys
+"""工具函数单元测试。"""
 import torch
-import pytest
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-import libs.utils as utils
+from rl_server.utils import process as utils
 
 
 class TestSaveLoadModel:
@@ -29,8 +25,7 @@ class TestSaveLoadModel:
         model = torch.nn.Linear(4, 2)
 
         # Monkey-patch the base_dir to use tmp_path
-        import glob as _glob
-        original_base = os.path.abspath(os.path.join(os.path.dirname(utils.__file__), '../models'))
+        pass  # original_base removed
 
         # Create directory structure expected by save_model_to_file
         models_dir = tmp_path / "models" / "test_prefix"
@@ -66,24 +61,15 @@ class TestSetupSeed:
 
 class TestExitRun:
     def test_no_exit_by_default(self):
-        """Without shutdown event or exit.cmd, exit_run should return False."""
+        """Without shutdown event, should_exit should return False."""
         utils._shutdown_event.clear()
-        # Remove exit.cmd if it exists
-        exit_cmd_path = os.path.abspath(os.path.join(os.path.dirname(utils.__file__), '..', 'exit.cmd'))
-        had_exit_cmd = os.path.exists(exit_cmd_path)
-        if had_exit_cmd:
-            os.rename(exit_cmd_path, exit_cmd_path + '.bak')
-        try:
-            assert not utils.exit_run()
-        finally:
-            if had_exit_cmd:
-                os.rename(exit_cmd_path + '.bak', exit_cmd_path)
+        assert not utils.should_exit()
 
     def test_signal_shutdown(self):
         utils._shutdown_event.clear()
-        assert not utils.exit_run() or True  # may be True due to exit.cmd
+        assert not utils.should_exit()
         utils._shutdown_event.set()
-        assert utils.exit_run()
+        assert utils.should_exit()
         utils._shutdown_event.clear()
 
 

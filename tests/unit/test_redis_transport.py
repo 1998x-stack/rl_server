@@ -64,7 +64,7 @@ class TestRedisTransport:
         assert fake_cache.conn.llen(RedisCache.grads_name) == 1
 
     def test_reconnect_resets_connection(self, fake_cache):
-        old_conn = fake_cache.conn
+        pass  # old_conn reference removed
         fake_cache._reconnect()
         # After reconnect, conn should be a new Redis instance (not fakeredis anymore)
         # but since we're mocking, just verify it didn't crash and conn exists

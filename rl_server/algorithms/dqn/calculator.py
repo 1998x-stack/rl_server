@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 """DQN 梯度计算器：经验回放缓冲、目标网络与 MSE TD 损失。
-
-实现源自 ``algo_envs/dqn_gym_classic.py``。
 """
 import numpy as np
 import torch

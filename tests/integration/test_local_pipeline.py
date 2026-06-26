@@ -1,18 +1,15 @@
 """本地 DQN 管道集成测试：采样—训练循环冒烟。"""
-import os
-import sys
 import torch
 import numpy as np
 import pytest
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 # Patch numpy for gym 0.26 compatibility with numpy 2.x
 if not hasattr(np, 'bool8'):
     np.bool8 = np.bool_
 
-from algo_envs.dqn_gym_classic import DQNGymClassicNet, DQNGymClassicAgent, DQNGymClassicCalculate
-import libs.exps as Exps
+from rl_server.algorithms.dqn.network import DQNGymClassicNet
+from rl_server.algorithms.dqn.agent import DQNGymClassicAgent
+from rl_server.algorithms.dqn.calculator import DQNGymClassicCalculate
 
 
 @pytest.mark.integration

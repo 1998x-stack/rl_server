@@ -1,12 +1,10 @@
 """YAML 配置加载与环境变量插值单元测试。"""
 import os
-import sys
 import pytest
 import tempfile
 import yaml
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-from libs.config_loader import load_config, interpolate_env_vars
+from rl_server.config.loader import load_config, interpolate_env_vars
 
 
 class TestInterpolateEnvVars:

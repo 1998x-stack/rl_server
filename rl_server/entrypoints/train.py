@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 """本地多进程训练入口：Trainer / Sampler / Checker 与主进程梯度聚合。
-
-基于 ``train_main_local/train_main_local.py``，统一使用 ``rl_server`` 包内模块。
 """
 import os
 import argparse
@@ -50,10 +48,6 @@ def main():
     config_path = args.config or os.path.join(
         os.path.abspath(os.path.dirname(__file__)), '..', 'config', 'default.yaml'
     )
-    if not os.path.exists(config_path):
-        config_path = os.path.join(
-            os.path.abspath(os.path.dirname(__file__)), '..', '..', 'config', 'default.yaml'
-        )
     config = load_config(config_path, args.override)
 
     train_log = Log("train_main_local")

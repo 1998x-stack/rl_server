@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 """经验回放缓冲区：单步转移与整条轨迹两种存储方式。
-
-从 ``libs/exps.py`` 迁移，已移除对 ``sys.path`` 的修改。
 """
 import collections
 import numpy as np

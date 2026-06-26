@@ -1,11 +1,8 @@
 """动作选择器单元测试。"""
-import os
-import sys
 import numpy as np
 import pytest
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-from libs.actions import ArgmaxActionSelector, EpsilonGreedyActionSelector, ProbabilityActionSelector, EpsilonTracker
+from rl_server.core.actions import ArgmaxActionSelector, EpsilonGreedyActionSelector, ProbabilityActionSelector, EpsilonTracker
 
 
 class TestArgmaxActionSelector:

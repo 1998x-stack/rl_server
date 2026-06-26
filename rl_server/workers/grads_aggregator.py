@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 """梯度聚合服务：从 Redis 拉取梯度、累加并更新模型，再广播到模型 Redis。
-
-逻辑源自 ``grads_main/grads_main.py``。
 """
 from rl_server.utils.logging import Log
 from rl_server.utils.process import should_exit

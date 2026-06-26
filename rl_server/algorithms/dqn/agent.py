@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 """经典 Gym 环境的 DQN 智能体：向量环境并行采样与单环境评估。
-
-实现源自 ``algo_envs/dqn_gym_classic.py``。
 """
 import gymnasium as gym
 import numpy as np
