@@ -36,6 +36,7 @@ class SamplerWorker:
     def process_function(self):
         """子进程主循环：采样直至收到退出标志。"""
         setup_seed()
+        self._last_sync_version = -1
         sample_agent = create_agent(self.env_name, self.share_model)
 
         while True:
@@ -43,7 +44,10 @@ class SamplerWorker:
                 break
 
             try:
-                sample_agent.sample_net.load_state_dict(self.share_model.state_dict())
+                current_version = self.model_dict.get('TRAIN_VERSION', 0)
+                if current_version != self._last_sync_version:
+                    sample_agent.sample_net.load_state_dict(self.share_model.state_dict())
+                    self._last_sync_version = current_version
                 exps_list = sample_agent.sample_multi_envs(self.model_dict)
 
                 if exps_list is not None:

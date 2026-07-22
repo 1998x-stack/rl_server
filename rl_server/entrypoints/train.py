@@ -6,6 +6,7 @@ import argparse
 import time
 import queue
 import torch.multiprocessing as mp
+import numpy as np
 
 from rl_server.utils.logging import Log
 from rl_server.utils.process import setup_mp, setup_seed, should_exit, setup_signal_handlers
@@ -15,6 +16,7 @@ from rl_server.algorithms import create_net, set_device
 from rl_server.workers.sampler import SamplerWorker
 from rl_server.workers.trainer import TrainerWorker
 from rl_server.workers.checker import CheckerWorker
+from tensorboardX import SummaryWriter
 
 
 def parse_args():
@@ -132,6 +134,9 @@ def main():
 
     train_log.log_info("Started train_main_local")
 
+    # Training metrics writer for TensorBoard
+    train_writer = SummaryWriter(comment="train")
+
     grads_buffer = None
     grads_count = 0
 
@@ -150,6 +155,7 @@ def main():
                 if train_checker:
                     train_checker.stop()
 
+                train_writer.close()
                 train_log.log_info("Shutdown complete")
                 break
 
@@ -157,6 +163,14 @@ def main():
                 current_train_version += 1
                 train_net.update_state(current_train_version, grads_buffer)
                 model_dict['TRAIN_VERSION'] = current_train_version
+
+                # Write training metrics to TensorBoard
+                metrics = model_dict.get('trainer_metrics', None)
+                if metrics is not None and metrics.get('train_version') == current_train_version:
+                    for key in ['policy_loss', 'value_loss', 'entropy', 'gradient_norm']:
+                        if key in metrics:
+                            train_writer.add_scalar(f"train/{key}", metrics[key], current_train_version)
+                    train_writer.flush()
 
                 if current_train_version % 10 == 0:
                     train_log.log_info(f"Version {current_train_version}")
@@ -178,9 +192,15 @@ def main():
                         grads_buffer = grads_item
                     else:
                         for target_grad, grad in zip(grads_buffer, grads_item):
-                            target_grad += grad
+                            np.add(target_grad, grad, out=target_grad)
                 except queue.Empty:
                     pass
+            if current_train_version > 0 and current_train_version % 10 == 0:
+                now = time.time()
+                for i in range(num_trainers):
+                    hb = model_dict.get(f'trainer_heartbeat_{i}', 0)
+                    if now - hb > 30:
+                        train_log.log_info(f"Trainer {i} heartbeat stale ({now - hb:.0f}s since last)")
             time.sleep(0)
         except Exception:
             train_log.log_exception()

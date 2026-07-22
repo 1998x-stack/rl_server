@@ -51,6 +51,8 @@ class TrainerWorker:
     def process_function(self):
         """子进程入口：循环直到 ``model_dict['is_exit']``，拉取样本并推送梯度。"""
         setup_seed()
+        heartbeat_key = f'trainer_heartbeat_{self.trainer_id}'
+        self.model_dict[heartbeat_key] = time.time()
         calculate = create_calculate(self.env_name, self.share_model)
         while True:
             if self.model_dict['is_exit']:
@@ -65,6 +67,7 @@ class TrainerWorker:
                     grads_info['grads_version'] = train_version
                     grads_info['sample_version'] = samples_info['sample_version']
                     self.grads_queue.put(grads_info)
+                self.model_dict[heartbeat_key] = time.time()
 
                 time.sleep(0)
 

@@ -19,9 +19,9 @@ class DQNGymClassicAgent(AlgoBaseAgent):
 
         self.model_config = MODEL_CONFIG
         self.sample_net = sample_net
-        self.num_steps = MODEL_CONFIG['NUM_STEPS']
-        self.num_envs = MODEL_CONFIG['NUM_ENVS']
-        self.epsilon = TRAIN_CONFIG['epsilon']
+        self.num_steps = MODEL_CONFIG.NUM_STEPS
+        self.num_envs = MODEL_CONFIG.NUM_ENVS
+        self.epsilon = TRAIN_CONFIG.epsilon
 
         self.ACT_DIM = TRAIN_ENVS[current_env_name].ACT_DIM
         env_name = TRAIN_ENVS[current_env_name].ENV_NAME
@@ -76,7 +76,7 @@ class DQNGymClassicAgent(AlgoBaseAgent):
     @torch.no_grad()
     def _get_sample_actions(self, states):
         """批量状态 -> 贪心或随机动作（训练探索）。"""
-        t_states = torch.Tensor(states)
+        t_states = torch.from_numpy(np.asarray(states))
         if np.random.random() > self.epsilon:
             actions = self.sample_net(t_states)
             actions = actions.cpu().numpy()
@@ -87,6 +87,6 @@ class DQNGymClassicAgent(AlgoBaseAgent):
     @torch.no_grad()
     def _get_single_action(self, state):
         """单状态贪心动作（标量或向量）。"""
-        action = self.sample_net(torch.Tensor(state))
+        action = self.sample_net(torch.from_numpy(np.asarray(state)))
         action = action.cpu().numpy()
         return action

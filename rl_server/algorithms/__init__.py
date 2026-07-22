@@ -32,8 +32,8 @@ def set_device(env_name: str, device):
     if env_name not in _REGISTRY:
         _lazy_load(env_name)
     net_cls, _, _ = _REGISTRY[env_name]
-    mod = __import__(net_cls.__module__, fromlist=['MODEL_CONFIG'])
-    mod.MODEL_CONFIG['DEVICE'] = torch.device(device) if isinstance(device, str) else device
+    mod = __import__(net_cls.__module__, fromlist=['MODEL_CONFIG_DEVICE'])
+    mod.MODEL_CONFIG_DEVICE = torch.device(device) if isinstance(device, str) else device
 
 
 def create_net(env_name: str) -> AlgoBaseNet:

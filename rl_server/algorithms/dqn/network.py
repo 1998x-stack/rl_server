@@ -5,6 +5,7 @@
 """
 import torch
 import torch.nn as nn
+from dataclasses import dataclass, field
 from types import SimpleNamespace
 
 from rl_server.core.base import AlgoBaseNet, layer_init
@@ -44,20 +45,26 @@ TRAIN_ENVS = {
 
 current_env_name = 'CartPole'
 
-# Training parameters
-TRAIN_CONFIG = dict()
-TRAIN_CONFIG['GAMMA'] = 0.99
-TRAIN_CONFIG['BATCH_SIZE'] = 256
-TRAIN_CONFIG['LEARNING_RATE'] = 2.5e-4
-TRAIN_CONFIG['epsilon'] = 0.01
+@dataclass(frozen=True)
+class DQNTrainingConfig:
+    GAMMA: float = 0.99
+    BATCH_SIZE: int = 256
+    LEARNING_RATE: float = 2.5e-4
+    epsilon: float = 0.01
 
-# Model and environment config
-MODEL_CONFIG = dict()
-MODEL_CONFIG['NUM_ENVS'] = 32
-MODEL_CONFIG['NUM_STEPS'] = 512
-MODEL_CONFIG['OBS_SPACE'] = (4,)
-MODEL_CONFIG['ACTION_SHAPE'] = [2]
-MODEL_CONFIG['DEVICE'] = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+TRAIN_CONFIG = DQNTrainingConfig()
+
+@dataclass(frozen=True)
+class DQNModelConfig:
+    NUM_ENVS: int = 32
+    NUM_STEPS: int = 512
+    OBS_SPACE: tuple = (4,)
+    ACTION_SHAPE: list = field(default_factory=lambda: [2])
+
+# DEVICE is kept as a separate mutable module-level variable (not in frozen dataclass)
+# because set_device() in algorithms/__init__.py modifies it at runtime
+MODEL_CONFIG_DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+MODEL_CONFIG = DQNModelConfig()
 
 MAX_BUFFER_SIZE = 100000
 
@@ -99,9 +106,10 @@ class DQNGymClassicNet(AlgoBaseNet):
         return action
 
     def update_state(self, version, grads_buffer):
-        """用外层聚合的梯度向量执行一步 Adam（用于分布式梯度同步）。"""
-        train_optim = torch.optim.Adam(params=self.parameters(), lr=TRAIN_CONFIG['LEARNING_RATE'])
+        train_optim = torch.optim.Adam(params=self.parameters(), lr=TRAIN_CONFIG.LEARNING_RATE)
         train_optim.zero_grad()
         for param, grad in zip(self.parameters(), grads_buffer):
             param.grad = torch.FloatTensor(grad)
         train_optim.step()
+
+    

@@ -349,30 +349,24 @@ class MujocoBetaCalculate(AlgoBaseCalculate):
         self.calculate_net.load_state_dict(self.share_model.state_dict())
         t_new_values, t_new_log_probs, t_entropys = self.calculate_net.get_calculate_data(t_states, t_actions)
 
-        s_advantages = [0]
-        s_returns = [0]
-
-        # Calculate advantages
-        last_gae = 0.0
         with torch.no_grad():
-            for value, next_value, reward, done in zip(
-                reversed(t_new_values[:-1]),
-                reversed(t_new_values[1:]),
-                reversed(s_rewards[:-1]),
-                reversed(s_dones[:-1])
-            ):
-                if done:
-                    delta = reward - value
-                    last_gae = delta
-                else:
-                    delta = reward + gamma * next_value - value
-                    last_gae = delta + gamma * gae_lambda * last_gae
+            rewards_t = torch.from_numpy(s_rewards[:-1]).float().to(self.device)
+            dones_t = torch.from_numpy(s_dones[:-1]).to(self.device).bool()
+            values_t = t_new_values[:-1].squeeze(-1)
+            next_values_t = t_new_values[1:].squeeze(-1)
 
-                s_advantages.append(last_gae)
-                s_returns.append(last_gae + value)
+            deltas = rewards_t + gamma * next_values_t - values_t
+            deltas[dones_t] = rewards_t[dones_t] - values_t[dones_t]
 
-        t_advantages = torch.Tensor(list(reversed(s_advantages))).to(self.device)
-        t_returns = torch.Tensor(list(reversed(s_returns))).to(self.device)
+            advantages = torch.zeros(len(deltas) + 1, device=self.device)
+            gae = 0.0
+            for t in reversed(range(len(deltas))):
+                gae = deltas[t] + gamma * gae_lambda * (~dones_t[t]).float() * gae
+                advantages[t] = gae
+
+            t_advantages = advantages.unsqueeze(-1)
+            values_full = torch.cat([values_t, torch.zeros(1, device=self.device)])
+            t_returns = (advantages + values_full).unsqueeze(-1)
 
         t_advantages = t_advantages.reshape(-1, 1).expand_as(t_new_log_probs)
         t_returns = t_returns.reshape(-1, 1)

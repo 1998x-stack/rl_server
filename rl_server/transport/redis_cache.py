@@ -7,6 +7,10 @@ import pickle
 import torch.nn as nn
 from typing import Dict, List
 
+from rl_server.transport.serialization import (
+    deserialize_gradients,
+    serialize_gradients,
+)
 from rl_server.utils.logging import Log
 import time as _time
 import functools
@@ -89,6 +93,9 @@ class RedisCache:
         if not self.conn.ping():
             self.log.log_info("Redis connect fail, will exit")
             raise ConnectionError("Cannot connect to Redis")
+
+        self._pop_exps_timeouts = 0
+        self._pop_grads_timeouts = 0
 
     def __del__(self):
         """析构时关闭连接（忽略异常）。"""
@@ -244,6 +251,9 @@ class RedisCache:
         try:
             exps_info = self.conn.brpop(RedisCache.exps_name, timeout=5)
             if exps_info is None:
+                self._pop_exps_timeouts += 1
+                if self._pop_exps_timeouts % 10 == 0:
+                    self.log.log_info(f"pop_exps timeout x{self._pop_exps_timeouts} (last at {_time.strftime('%H:%M:%S', _time.localtime(_time.time()))})")
                 return None, None
             exps_info = zlib.decompress(exps_info[1])
             exps_info = pickle.loads(exps_info)
@@ -266,7 +276,7 @@ class RedisCache:
         """
         try:
             grads_info = dict()
-            grads_info['grads'] = grads
+            grads_info['grads'] = serialize_gradients(grads)  # numpy 优化序列化
             grads_info['grads_version'] = grads_version
             grads_info['sample_version'] = sample_version
             grads_info = pickle.dumps(grads_info, protocol=pickle.HIGHEST_PROTOCOL)
@@ -286,9 +296,13 @@ class RedisCache:
         try:
             grads_info = self.conn.brpop(RedisCache.grads_name, timeout=5)
             if grads_info is None:
+                self._pop_grads_timeouts += 1
+                if self._pop_grads_timeouts % 10 == 0:
+                    self.log.log_info(f"pop_grads timeout x{self._pop_grads_timeouts}")
                 return None, None, None
             grads_info = zlib.decompress(grads_info[1])
             grads_info = pickle.loads(grads_info)
+            grads_info['grads'] = deserialize_gradients(grads_info['grads'])  # numpy 反序列化
             return grads_info['grads'], grads_info['grads_version'], grads_info['sample_version']
         except Exception:
             self.log.log_exception()

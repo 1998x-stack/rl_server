@@ -43,8 +43,11 @@ logs/
 runs/
 models/
 
-# Local env / secrets (never commit)
-.env
+# OpenCode agent session artifacts
+.omo/
+
+# Plan documents are tracked voluntarily
+# docs/superpowers/plans/
 .env.*
 !.env.example
 

@@ -24,8 +24,8 @@ class DQNGymClassicCalculate(AlgoBaseCalculate):
         self.target_net = DQNGymClassicNet()
         self.exps_buffer = ExperienceBuffer(capacity=MAX_BUFFER_SIZE)
 
-        self.gamma = self.train_config['GAMMA']
-        self.batch_size = TRAIN_CONFIG['BATCH_SIZE']
+        self.gamma = self.train_config.GAMMA
+        self.batch_size = TRAIN_CONFIG.BATCH_SIZE
         self.version_diff = 10
         self.num_repeat = 64
         self.update_version = 0
