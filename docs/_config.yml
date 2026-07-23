@@ -16,3 +16,16 @@ header_pages:
   - api.md
   - deployment.md
   - gpu-training.md
+  - registry.md
+  - core.md
+  - config.md
+  - transport.md
+  - workers.md
+  - entrypoints.md
+  - utils.md
+  - dqn.md
+  - ppo.md
+  - sac.md
+  - td3.md
+  - testing.md
+  - run_ppo_swimmer.md
