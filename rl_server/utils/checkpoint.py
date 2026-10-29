@@ -52,7 +52,7 @@ def load_model(
     if not file_path or not os.path.exists(file_path):
         return None
     try:
-        checkpoint = torch.load(file_path, map_location=map_location)
+        checkpoint = torch.load(file_path, map_location=map_location or 'cpu', weights_only=True)
         if 'state_dict' not in checkpoint or 'version' not in checkpoint:
             raise ValueError("Invalid checkpoint format")
         model.load_state_dict(checkpoint['state_dict'])

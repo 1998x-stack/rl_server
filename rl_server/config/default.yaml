@@ -1,15 +1,18 @@
 redis:
   model:
+    namespace: "${RL_RUN_ID:rl_server_default}"
     host: "${REDIS_MODEL_HOST:localhost}"
     port: 6379
     db: 0
     password: "${REDIS_PASSWORD:}"
   exps:
+    namespace: "${RL_RUN_ID:rl_server_default}"
     host: "${REDIS_EXPS_HOST:localhost}"
     port: 6379
     db: 1
     password: "${REDIS_PASSWORD:}"
   grads:
+    namespace: "${RL_RUN_ID:rl_server_default}"
     host: "${REDIS_GRADS_HOST:localhost}"
     port: 6379
     db: 2
@@ -22,6 +25,7 @@ training:
   num_trainers: 1
   num_update_grads: 1
   batch_update_grads_server: 10
+  max_gradient_lag: 0
   enable_checker: true
   version_update_sample_model: 1
   version_update_calculate_model: 1

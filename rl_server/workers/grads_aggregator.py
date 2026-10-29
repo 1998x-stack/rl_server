@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """梯度聚合服务：从 Redis 拉取梯度、累加并更新模型，再广播到模型 Redis。
 """
+import numpy as np
+
 from rl_server.utils.logging import Log
 from rl_server.utils.process import should_exit
 from rl_server.utils.checkpoint import save_model, load_model
@@ -18,6 +20,7 @@ class GradsAggregator:
         grads_redis_config: dict,
         model_redis_config: dict,
         batch_update_count: int = 10,
+        max_gradient_lag: int = 0,
         log: Log = None,
     ):
         """初始化聚合器与双 Redis 连接。
@@ -33,6 +36,10 @@ class GradsAggregator:
         self.env_name = env_name
         self.model_prefix = model_prefix
         self.batch_update_count = batch_update_count
+        if batch_update_count < 1 or max_gradient_lag < 0:
+            raise ValueError("Invalid gradient aggregation limits")
+        self.max_gradient_lag = max_gradient_lag
+        self.rejected_gradients = 0
         self.log = log or Log("grads_aggregator")
 
         self.grads_net = create_net(env_name)
@@ -45,12 +52,35 @@ class GradsAggregator:
             self.current_train_version = 0
 
         self.grads_redis = RedisCache(self.log, grads_redis_config)
-        self.grads_redis.clear_data()
+        # Never flush shared Redis storage when a worker starts.
 
         self.model_redis = RedisCache(self.log, model_redis_config)
-        self.model_redis.clear_data()
+        # Run isolation is controlled by the configured Redis namespace.
 
-        self.model_redis.set_train_version_model(self.current_train_version, self.grads_net)
+        self.model_redis.set_exit_flag(False)
+        if not self.model_redis.set_train_version_model(self.current_train_version, self.grads_net):
+            raise RuntimeError("Unable to publish initial model snapshot")
+
+    def _accept_gradients(self, grads, grads_version) -> bool:
+        """Reject stale, malformed and non-finite gradients before applying."""
+        if not isinstance(grads_version, int):
+            return False
+        if not (self.current_train_version - self.max_gradient_lag <= grads_version <= self.current_train_version):
+            return False
+        if not isinstance(grads, (list, tuple)):
+            return False
+        params = list(self.grads_net.parameters())
+        if len(grads) != len(params):
+            return False
+        for grad, param in zip(grads, params):
+            if grad is None:
+                return False
+            arr = np.asarray(grad)
+            if arr.shape != tuple(param.shape) or not np.issubdtype(arr.dtype, np.number):
+                return False
+            if not np.isfinite(arr).all():
+                return False
+        return True
 
     def run(self):
         """主循环：聚合梯度、更新模型、响应 ``should_exit()`` 时保存并设置退出标志。"""
@@ -86,6 +116,11 @@ class GradsAggregator:
                     grads_item, grads_version, sample_version = self.grads_redis.pop_grads()
 
                     if grads_item is not None:
+                        if not self._accept_gradients(grads_item, grads_version):
+                            self.rejected_gradients += 1
+                            if self.rejected_gradients % 100 == 1:
+                                self.log.log_info(f"Rejected {self.rejected_gradients} stale or invalid gradient batches")
+                            continue
                         grads_count += 1
                         if grads_buffer is None:
                             grads_buffer = grads_item

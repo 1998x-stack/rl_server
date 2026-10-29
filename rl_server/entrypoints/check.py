@@ -42,7 +42,7 @@ def main():
     setup_signal_handlers()
 
     config_path = args.config or os.path.join(
-        os.path.abspath(os.path.dirname(__file__)), '..', '..', 'config', 'default.yaml'
+        os.path.abspath(os.path.dirname(__file__)), '..', 'config', 'default.yaml'
     )
     config = load_config(config_path, args.override)
 
