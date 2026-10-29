@@ -55,6 +55,7 @@ def test_fail_closed_capabilities():
     validate_capabilities(spec,action_space='discrete')
     with pytest.raises(ValueError):validate_capabilities(spec,multi_agent=True)
     with pytest.raises(ValueError):validate_capabilities(spec,action_space='continuous')
+    with pytest.raises(ValueError):validate_capabilities(spec,action_mask=True)
 
 def test_lifecycle_requires_checkpoint_and_final_eval():
     run=RunLifecycle('run-demo')

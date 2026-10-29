@@ -12,8 +12,8 @@ class AlgorithmCapabilities:
     supports_multi_agent: bool = False
 
 REGISTRY = {
- 'dqn': AlgorithmCapabilities('dqn','off_policy','discrete',True),
- 'ppo_discrete': AlgorithmCapabilities('ppo_discrete','on_policy','discrete',True),
+ 'dqn': AlgorithmCapabilities('dqn','off_policy','discrete',False),
+ 'ppo_discrete': AlgorithmCapabilities('ppo_discrete','on_policy','discrete',False),
  'ppo_continuous': AlgorithmCapabilities('ppo_continuous','on_policy','continuous',False),
  'sac': AlgorithmCapabilities('sac','off_policy','continuous',False),
  'td3': AlgorithmCapabilities('td3','off_policy','continuous',False),
