@@ -87,8 +87,10 @@ class TestRedisCache:
     def test_clear_data(self, fake_redis_cache):
         cache = fake_redis_cache
         cache.conn.set('test_key', 'test_value')
+        cache.set_exit_flag(True)
         cache.clear_data()
-        assert cache.conn.get('test_key') is None
+        assert cache.conn.get('test_key') == b'test_value'
+        assert cache.get_exit_flag() is None
 
     def test_health_check(self, fake_redis_cache):
         cache = fake_redis_cache
