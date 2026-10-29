@@ -35,7 +35,7 @@ def main():
     setup_signal_handlers()
 
     config_path = args.config or os.path.join(
-        os.path.abspath(os.path.dirname(__file__)), '..', '..', 'config', 'default.yaml'
+        os.path.abspath(os.path.dirname(__file__)), '..', 'config', 'default.yaml'
     )
     config = load_config(config_path, args.override)
 
@@ -50,12 +50,14 @@ def main():
         'port': str(redis_cfg.get('model', {}).get('port', 6379)),
         'db': str(redis_cfg.get('model', {}).get('db', 0)),
         'pw': redis_cfg.get('model', {}).get('password', ''),
+        'namespace': redis_cfg.get('model', {}).get('namespace', ''),
     }
     exps_redis_config = {
         'ip': redis_cfg.get('exps', {}).get('host', 'localhost'),
         'port': str(redis_cfg.get('exps', {}).get('port', 6379)),
         'db': str(redis_cfg.get('exps', {}).get('db', 1)),
         'pw': redis_cfg.get('exps', {}).get('password', ''),
+        'namespace': redis_cfg.get('exps', {}).get('namespace', ''),
     }
 
     sample_net = create_net(env_name)
@@ -81,8 +83,9 @@ def main():
 
             version = model_redis.get_train_version()
             if version is not None and version != model_dict['TRAIN_VERSION']:
-                model_redis.get_train_model(sample_net)
-                model_dict['TRAIN_VERSION'] = version
+                loaded_version = model_redis.get_train_snapshot(sample_net)
+                if loaded_version is not None:
+                    model_dict['TRAIN_VERSION'] = loaded_version
 
             exps_list = sample_agent.sample_multi_envs(model_dict)
             if exps_list is not None:

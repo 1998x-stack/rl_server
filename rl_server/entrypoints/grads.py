@@ -35,7 +35,7 @@ def main():
     setup_signal_handlers()
 
     config_path = args.config or os.path.join(
-        os.path.abspath(os.path.dirname(__file__)), '..', '..', 'config', 'default.yaml'
+        os.path.abspath(os.path.dirname(__file__)), '..', 'config', 'default.yaml'
     )
     config = load_config(config_path, args.override)
 
@@ -50,12 +50,14 @@ def main():
         'port': str(redis_cfg.get('grads', {}).get('port', 6379)),
         'db': str(redis_cfg.get('grads', {}).get('db', 2)),
         'pw': redis_cfg.get('grads', {}).get('password', ''),
+        'namespace': redis_cfg.get('grads', {}).get('namespace', ''),
     }
     model_redis_config = {
         'ip': redis_cfg.get('model', {}).get('host', 'localhost'),
         'port': str(redis_cfg.get('model', {}).get('port', 6379)),
         'db': str(redis_cfg.get('model', {}).get('db', 0)),
         'pw': redis_cfg.get('model', {}).get('password', ''),
+        'namespace': redis_cfg.get('model', {}).get('namespace', ''),
     }
 
     batch_count = config.get('training', {}).get('batch_update_grads_server', 10)
@@ -66,6 +68,7 @@ def main():
         grads_redis_config=grads_redis_config,
         model_redis_config=model_redis_config,
         batch_update_count=batch_count,
+        max_gradient_lag=config.get('training', {}).get('max_gradient_lag', 0),
         log=grads_log
     )
 

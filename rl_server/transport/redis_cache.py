@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 """Redis 封装：分布式训练中的模型版本、经验队列、梯度队列与退出标志。
 """
+import io
+import re
+import torch
 import redis
 import zlib
 import pickle
@@ -80,13 +83,19 @@ class RedisCache:
         """
         self.log = log
         self.redis_config = redis_config
+        self.namespace = str(redis_config.get('namespace', '')).strip()
+        if self.namespace and not re.fullmatch(r'[A-Za-z0-9_.-]{1,64}', self.namespace):
+            raise ValueError("Invalid Redis run namespace")
         pool_size = int(redis_config.get('pool_size', 10))
         self.pool = redis.ConnectionPool(
             host=redis_config['ip'],
             port=redis_config['port'],
             db=redis_config['db'],
             password=redis_config['pw'],
-            max_connections=pool_size
+            max_connections=pool_size,
+            socket_connect_timeout=5,
+            socket_timeout=10,
+            health_check_interval=30,
         )
         self.conn = redis.Redis(connection_pool=self.pool)
 
@@ -97,9 +106,16 @@ class RedisCache:
         self._pop_exps_timeouts = 0
         self._pop_grads_timeouts = 0
 
+    def _key(self, name: str) -> str:
+        """Scope every key to a run; legacy unscoped instances still work."""
+        namespace = getattr(self, 'namespace', self.redis_config.get('namespace', ''))
+        return f"{namespace}:{name}" if namespace else name
+
     def __del__(self):
         """析构时关闭连接（忽略异常）。"""
-        self.conn.close()
+        conn = getattr(self, 'conn', None)
+        if conn is not None:
+            conn.close()
 
     def _reconnect(self):
         """关闭旧连接并按配置重建单连接客户端（无连接池）。"""
@@ -126,8 +142,14 @@ class RedisCache:
             return False
 
     def clear_data(self):
-        """清空当前 Redis 数据库（``FLUSHALL``），慎用。"""
-        self.conn.flushall()
+        """Remove only known keys in this run; NEVER flush a Redis database."""
+        names = (
+            self.version_name, self.model_name, self.exps_name,
+            self.exit_flag_name, self.train_version_name, self.train_model_name,
+            self.sample_version_name, self.sample_model_name, self.grads_name,
+            'train_snapshot',
+        )
+        return self.conn.delete(*(self._key(name) for name in names))
 
     def set_exit_flag(self, exit_flag: bool):
         """写入全局退出标志，供远程 worker 轮询。
@@ -139,7 +161,7 @@ class RedisCache:
             成功返回 ``True``，异常时返回 ``False``。
         """
         try:
-            self.conn.set(RedisCache.exit_flag_name, int(exit_flag))
+            self.conn.set(self._key(RedisCache.exit_flag_name), int(exit_flag))
             return True
         except Exception:
             self.log.log_exception()
@@ -152,7 +174,7 @@ class RedisCache:
             已设置时为 ``0`` 或 ``1`` 的整数；未设置时为 ``None``；异常时为 ``None``。
         """
         try:
-            exit_flag = self.conn.get(RedisCache.exit_flag_name)
+            exit_flag = self.conn.get(self._key(RedisCache.exit_flag_name))
             if exit_flag is not None:
                 return int(exit_flag)
             else:
@@ -163,21 +185,23 @@ class RedisCache:
 
     @_retry()
     def set_train_version_model(self, version: int, model: nn.Module):
-        """将模型 ``state_dict`` 压缩后写入 Redis，并更新训练版本键。
-
-        Args:
-            version: 整数版本号。
-            model: 要广播的 PyTorch 模块。
-
-        Returns:
-            成功返回 ``True``，否则 ``False``。
-        """
+        """Publish model weights and the corresponding version atomically."""
         try:
-            model_dict = pickle.dumps(model.state_dict(), protocol=pickle.HIGHEST_PROTOCOL)
-            model_dict = zlib.compress(model_dict)
-            self.conn.set(RedisCache.train_model_name, model_dict)
-            self.conn.set(RedisCache.train_version_name, int(version))
+            snapshot = {
+                'version': int(version),
+                'state_dict': {k: v.detach().cpu() for k, v in model.state_dict().items()},
+            }
+            buffer = io.BytesIO()
+            torch.save(snapshot, buffer)
+            payload = zlib.compress(buffer.getvalue())
+            with self.conn.pipeline(transaction=True) as pipe:
+                pipe.set(self._key('train_snapshot'), payload)
+                pipe.set(self._key(self.train_model_name), payload)
+                pipe.set(self._key(self.train_version_name), int(version))
+                pipe.execute()
             return True
+        except redis.ConnectionError:
+            raise
         except Exception:
             self.log.log_exception()
             return False
@@ -189,7 +213,7 @@ class RedisCache:
             整数版本或 ``None``（未设置或出错）。
         """
         try:
-            version = self.conn.get(RedisCache.train_version_name)
+            version = self.conn.get(self._key(RedisCache.train_version_name))
             if version is not None:
                 return int(version)
             else:
@@ -198,26 +222,29 @@ class RedisCache:
             self.log.log_exception()
             return None
 
-    def get_train_model(self, model: nn.Module):
-        """从 Redis 读取压缩的 ``state_dict`` 并加载到 ``model``。
-
-        Args:
-            model: 与保存时结构一致的模块。
-
-        Returns:
-            成功加载返回 ``True``，无数据或失败返回 ``False``。
-        """
+    def get_train_snapshot(self, model: nn.Module):
+        """Return the version only after securely loading the same snapshot."""
         try:
-            result = self.conn.get(RedisCache.train_model_name)
-            if result is not None:
-                model_dict = pickle.loads(zlib.decompress(result))
-                model.load_state_dict(model_dict)
-                return True
-            else:
-                return False
+            payload = self.conn.get(self._key('train_snapshot'))
+            if payload is None:
+                return None
+            snapshot = torch.load(
+                io.BytesIO(zlib.decompress(payload)), map_location='cpu', weights_only=True
+            )
+            if not isinstance(snapshot, dict) or not isinstance(snapshot.get('version'), int):
+                raise ValueError("Invalid model snapshot version")
+            state = snapshot.get('state_dict')
+            if not isinstance(state, dict):
+                raise ValueError("Invalid model snapshot state")
+            model.load_state_dict(state, strict=True)
+            return snapshot['version']
         except Exception:
             self.log.log_exception()
-            return False
+            return None
+
+    def get_train_model(self, model: nn.Module):
+        """Backward-compatible boolean model loader using safe snapshots."""
+        return self.get_train_snapshot(model) is not None
 
     @_retry()
     def push_exps(self, exps: List, sample_version: int):
@@ -236,7 +263,7 @@ class RedisCache:
             exps_info['sample_version'] = sample_version
             exps_info = pickle.dumps(exps_info, protocol=pickle.HIGHEST_PROTOCOL)
             exps_info = zlib.compress(exps_info)
-            self.conn.lpush(RedisCache.exps_name, exps_info)
+            self.conn.lpush(self._key(RedisCache.exps_name), exps_info)
             return True
         except Exception:
             self.log.log_exception()
@@ -249,7 +276,7 @@ class RedisCache:
             ``(exps, sample_version)``；无数据或超时/错误时为 ``(None, None)``。
         """
         try:
-            exps_info = self.conn.brpop(RedisCache.exps_name, timeout=5)
+            exps_info = self.conn.brpop(self._key(RedisCache.exps_name), timeout=5)
             if exps_info is None:
                 self._pop_exps_timeouts += 1
                 if self._pop_exps_timeouts % 10 == 0:
@@ -281,7 +308,7 @@ class RedisCache:
             grads_info['sample_version'] = sample_version
             grads_info = pickle.dumps(grads_info, protocol=pickle.HIGHEST_PROTOCOL)
             grads_info = zlib.compress(grads_info)
-            self.conn.lpush(RedisCache.grads_name, grads_info)
+            self.conn.lpush(self._key(RedisCache.grads_name), grads_info)
             return True
         except Exception:
             self.log.log_exception()
@@ -294,7 +321,7 @@ class RedisCache:
             ``(grads, grads_version, sample_version)``；无数据或失败时为三元 ``None``。
         """
         try:
-            grads_info = self.conn.brpop(RedisCache.grads_name, timeout=5)
+            grads_info = self.conn.brpop(self._key(RedisCache.grads_name), timeout=5)
             if grads_info is None:
                 self._pop_grads_timeouts += 1
                 if self._pop_grads_timeouts % 10 == 0:

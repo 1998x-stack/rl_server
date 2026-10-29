@@ -60,5 +60,5 @@ def deserialize_gradients(data: bytes) -> List[np.ndarray]:
         ndarray 列表。
     """
     buf = io.BytesIO(data)
-    loaded = np.load(buf)
-    return [loaded[f'arr_{i}'] for i in range(len(loaded.files))]
+    with np.load(buf, allow_pickle=False) as loaded:
+        return [loaded[f'arr_{i}'] for i in range(len(loaded.files))]
