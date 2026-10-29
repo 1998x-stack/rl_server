@@ -52,3 +52,7 @@ The entire snapshot is loaded from one Redis GET; writes use a Redis transaction
 | P1 | CI/CD staged rollout, runbooks and DR | Canary, rollback, multi-host failure injection and published SLO |
 
 **Verification status:** changes are submitted to a review branch. Build/test results must be read from CI or a real Python runtime after checkout. Do not reuse the old README test badge as evidence for this patch.
+
+### Security advisory affecting earlier torch versions
+
+PyTorch published GHSA-63cw-57p8-fm3p (2026-01-26): even `torch.load(weights_only=True)` may execute arbitrary code when handling crafted checkpoints in PyTorch <=2.9.1. Fixed in 2.10.0. The minimum dependency is therefore raised to `torch>=2.10.0`, and workers still must avoid untrusted checkpoints. (https://github.com/pytorch/pytorch/security/advisories/GHSA-63cw-57p8-fm3p)
