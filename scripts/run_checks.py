@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import platform
 import shutil
 import signal
 import subprocess
@@ -165,6 +166,15 @@ def _available_envs(requested: list[str]) -> tuple[list[str], list[dict]]:
         available.remove("MicroRTS")
         skipped.append({"env": "MicroRTS", "reason": "no JDK on PATH (set JAVA_HOME)"})
     return available, skipped
+
+
+def _host_fingerprint() -> dict:
+    """机器指纹：用于判断吞吐基线是否与当前机器可比。"""
+    return {
+        "cpu_count": os.cpu_count(),
+        "platform": sys.platform,
+        "machine": platform.machine(),
+    }
 
 
 def _parse_training_log(log_path: Path) -> dict:
@@ -325,6 +335,8 @@ def main(argv: list[str] | None = None) -> int:
         "run_id": run_id,
         "repo": str(REPO_ROOT),
         "python": sys.version.split()[0],
+        # 吞吐基线只对同类机器可比：记录 CPU 数/平台，评测器据此决定是否做吞吐回归比对。
+        "host": _host_fingerprint(),
         "suites": summaries,
     }
     (run_dir / "summary.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")

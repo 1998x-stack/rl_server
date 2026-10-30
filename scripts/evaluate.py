@@ -141,6 +141,16 @@ METRIC_PATTERN = re.compile(
 )
 
 
+def _hosts_comparable(baseline: dict, summary: dict) -> bool:
+    """吞吐基线是否可与本次运行比较（CPU 数 + 平台一致）。"""
+    base_host = baseline.get("host") or {}
+    run_host = summary.get("host") or {}
+    if not base_host or not run_host:
+        return False
+    return (base_host.get("cpu_count") == run_host.get("cpu_count")
+            and base_host.get("platform") == run_host.get("platform"))
+
+
 def _extract_rejections(text: str) -> dict:
     """提取拒绝率与按 reason 的直方图（含 shutdown 汇总行与逐条告警）。"""
     reasons: dict = {}
@@ -225,7 +235,8 @@ def evaluate(run_dir: Path, baseline: dict) -> tuple[list[dict], dict]:
     """执行结构校验 + 复算 + 回归比对，返回 (检查列表, 观测摘要)。"""
     checks: list[dict] = []
     summary = _load_json(run_dir / "summary.json")
-    observation: dict = {"run_dir": str(run_dir), "suites": {}, "e2e": []}
+    observation: dict = {"run_dir": str(run_dir), "suites": {}, "e2e": [],
+                         "host": summary.get("host") if summary else None}
 
     if summary is None:
         checks.append(_check("summary", "summary.json parseable", False, "missing or invalid JSON"))
@@ -407,16 +418,24 @@ def evaluate(run_dir: Path, baseline: dict) -> tuple[list[dict], dict]:
 
             base_rate = float(baseline.get("e2e", {}).get(env, {}).get("versions_per_sec", 0.0))
             if base_rate:
-                floor = base_rate * RATE_TOLERANCE
-                checks.append(_check(env, "throughput not regressed",
-                                     recomputed["versions_per_sec"] >= floor,
-                                     f"{recomputed['versions_per_sec']:.2f} >= {floor:.2f} ver/s"))
+                if _hosts_comparable(baseline, summary):
+                    floor = base_rate * RATE_TOLERANCE
+                    checks.append(_check(env, "throughput not regressed",
+                                         recomputed["versions_per_sec"] >= floor,
+                                         f"{recomputed['versions_per_sec']:.2f} >= {floor:.2f} ver/s"))
+                else:
+                    # 基线来自不同机器（如本地 vs CI runner），绝对吞吐不可比。
+                    checks.append(_check(env, "throughput not regressed", True,
+                                         f"skipped: baseline host "
+                                         f"{baseline.get('host')} != {summary.get('host')} "
+                                         f"(this run {recomputed['versions_per_sec']:.2f} ver/s)"))
     return checks, observation
 
 
 def build_baseline(observation: dict, previous: dict) -> dict:
     """用本次观测生成/更新基线（保留未观测到的旧条目）。"""
     baseline = json.loads(json.dumps(previous or {}))
+    baseline["host"] = observation.get("host")
     unit = observation.get("suites", {}).get("unit")
     if unit and not unit.get("parse_error"):
         baseline.setdefault("unit", {})["tests"] = unit["tests"]

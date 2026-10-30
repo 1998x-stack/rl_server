@@ -76,14 +76,14 @@ def load_model(
             raise ValueError("Invalid checkpoint format")
         try:
             model.load_state_dict(checkpoint['state_dict'])
-            model._checkpoint_missing_keys = []
+            setattr(model, '_checkpoint_missing_keys', [])
         except RuntimeError as mismatch:
             # 网络结构新增参数（例如 SAC 的 log_alpha）后，旧检查点会缺键。
             # 这里降级为非严格加载并明确记录，而不是让整个训练起不来。
             result = model.load_state_dict(checkpoint['state_dict'], strict=False)
             missing = list(getattr(result, 'missing_keys', []) or [])
             unexpected = list(getattr(result, 'unexpected_keys', []) or [])
-            model._checkpoint_missing_keys = missing
+            setattr(model, '_checkpoint_missing_keys', missing)
             _log().warning(
                 f"checkpoint loaded partially path={file_path} version={checkpoint['version']} "
                 f"missing_keys={missing} unexpected_keys={unexpected} "

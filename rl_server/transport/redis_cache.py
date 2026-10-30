@@ -247,8 +247,10 @@ class RedisCache:
             payload = self.conn.get(self._key('train_snapshot'))
             if payload is None:
                 return None
+            # redis 可能返回 bytes 或 str（decode_responses=True），统一成 bytes 再解压。
+            raw = payload.encode() if isinstance(payload, str) else payload
             snapshot = torch.load(
-                io.BytesIO(zlib.decompress(payload)), map_location='cpu', weights_only=True
+                io.BytesIO(zlib.decompress(raw)), map_location='cpu', weights_only=True
             )
             if not isinstance(snapshot, dict) or not isinstance(snapshot.get('version'), int):
                 raise ValueError("Invalid model snapshot version")

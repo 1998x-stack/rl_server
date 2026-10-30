@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """带噪线性层与自定义梯度缩放：用于探索与分布式训练中的梯度处理。
 """
+from typing import Any
 import math
 import torch
 import torch.nn as nn
@@ -62,12 +63,12 @@ class NoisyLinear(nn.Linear):
         if not self.training:
             return super(NoisyLinear, self).forward(input)
 
-        bias = self.bias
+        bias: torch.Tensor | None = self.bias
         if bias is not None:
             bias = bias + self.sigma_bias * self.epsilon_bias.data
 
-        v = self.sigma_weight * self.epsilon_weight.data + self.weight
-        return F.linear(input, v, bias)
+        weight: torch.Tensor = self.sigma_weight * self.epsilon_weight.data + self.weight
+        return F.linear(input, weight, bias)
 
     def sample_noise(self):
         """为权重与偏置噪声缓冲区重新采样标准正态分布。"""
@@ -79,7 +80,7 @@ class NoisyLinear(nn.Linear):
 class GradCoef(autograd.Function):
     """自定义 autograd：前向恒等，反向将梯度乘以给定系数。"""
     @staticmethod
-    def forward(ctx: autograd.Function, x: torch.Tensor, coeff: float):
+    def forward(ctx: Any, x: torch.Tensor, coeff: float):
         """前向：原样返回 ``x``。
 
         Args:
@@ -94,7 +95,7 @@ class GradCoef(autograd.Function):
         return x.view_as(x)
 
     @staticmethod
-    def backward(ctx: autograd.Function, grad_output: torch.Tensor):
+    def backward(ctx: Any, grad_output: torch.Tensor):
         """反向：``grad_input = coeff * grad_output``。
 
         Args:
