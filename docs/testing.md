@@ -4,6 +4,10 @@ title: Testing
 description: Test suite structure, test layers, and test conventions
 ---
 
+::: tip 隔离检查与独立评测
+`python scripts/run_checks.py all` 在 `.checks/` 里隔离跑 unit/e2e/lint/typecheck，再用 `python scripts/evaluate.py --run-dir .checks/<id>` 独立复核并做回归检测，详见 [checks.md](checks.md)。
+:::
+
 # Testing
 
 RL Server has 174+ tests organized into three layers: unit, smoke, and integration.

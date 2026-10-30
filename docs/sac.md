@@ -109,6 +109,9 @@ Same pattern as MuJoCo PPO: `(tanh(μ), entropy)` per step, returns `sum_rewards
 | **Repeat time** | 1 (one minibatch per `generate_grads` call) |
 | **γ** | 0.99 |
 | **Learning rate** | 2.5e-4 |
+| **τ (polyak)** | 0.005 — 目标 critic 软更新 |
+| **初始 α** | 0.2（之后由 `log_alpha` 学习） |
+| **目标熵** | `-act_dim` |
 
 ### Gradient Computation Flow
 
@@ -122,16 +125,22 @@ generate_grads(samples, model_dict):
   6. Move calculate_net to device (GPU if configured)
   7. Repeat REPEAT_TIME (default 1):
      a. Sample batch from buffer
-     b. Q1(s,a), Q2(s,a) from calculate_net
-     c. Target Q (clipped double Q):
+     a2. critic：Q1(s,a), Q2(s,a) from calculate_net
         - next_actions = calculate_net.get_sample_data(next_states)
-        - next_q1, next_q2 = calculate_net.get_q_values(next_states, next_actions)
-        - next_q = min(next_q1, next_q2)     ← clipped double Q
-        - target = r + γ * next_q
-     d. Q_loss = MSE(Q1, target) + MSE(Q2, target)
-     e. Q_loss.backward()
-  8. Collect parameter.grad as numpy arrays
-  9. Return [grads], train_version
+        - next_q1, next_q2 = *target* critics (polyak 副本)
+        - next_q = min(next_q1, next_q2)                  ← clipped double Q
+        - target = r + γ * (1 - done) * next_q            ← 终局不自举
+        - Q_loss = MSE(Q1, target) + MSE(Q2, target) → backward
+     b. actor（冻结 critic 叶子参数）：
+        - dists = calculate_net.get_distributions(states)
+        - raw = dists.rsample(); a = tanh(raw)
+        - logπ = dists.log_prob(raw) - log(1 - a²)         ← tanh 雅可比修正
+        - actor_loss = (α·logπ - min(Q1(s,a), Q2(s,a))).mean() → backward
+     c. temperature：alpha_loss = -(log_alpha·(logπ + target_entropy)).mean() → backward
+     d. 软更新目标 critic：θ_target ← (1-τ)·θ_target + τ·θ_online
+  8. Collect parameter.grad as numpy arrays（含 log_alpha）
+  9. 写 trainer_metrics：q_loss / actor_loss / alpha_loss / entropy / alpha
+ 10. Return [grads], train_version
 ```
 
 ### SAC-Specific Features
@@ -141,13 +150,21 @@ generate_grads(samples, model_dict):
 | **Dual Q-networks** | Two separate MLPs (`q1_value`, `q2_value`) taking `concat(state, action)` |
 | **Clipped double Q** | Target uses `min(Q1, Q2)` — reduces overestimation |
 | **Entropy regularization** | Policy is stochastic by default (Gaussian with learnable log_std) |
-| **Auto-temperature α** | Not yet implemented — uses fixed entropy coefficient |
+| **Auto-temperature α** | `log_alpha` 是可学习参数（初值 0.2），目标熵 `-act_dim`；随梯度一起聚合 |
 | **Experience replay** | Off-policy training via ExperienceBuffer |
 | **Noise resampling** | Separate noisy layers for μ and log_std networks |
 
 ### Soft Update
 
-Unlike DQN which uses hard target network updates every N steps, SAC uses the same online network for both Q estimation and target — the target is produced by the same net (`calculate_net`) on `next_states`. There is no separate target network.
+目标 critic 是 `MujocoNormalQCalculate` 内部的独立副本（首次调用时从在线 critic 初始化），
+每次 `generate_grads` 结束按 `τ=0.005` 软更新：
+
+```python
+θ_target ← (1 - τ) · θ_target + τ · θ_online
+```
+
+它们只存在于 trainer 进程，不进 checkpoint、也不参与梯度聚合（聚合的是在线网络参数）。
+因此重启训练会重新用当前权重初始化目标网络——这会带来一次轻微的 target 收缩，属可接受行为。
 
 ### Supported Environments
 
@@ -162,8 +179,27 @@ Swimmer, HalfCheetah, Ant, Hopper, Pusher, Humanoid, Walker2d, HumanoidStandup, 
 | Ant | 27 | 8 | 256 |
 | Humanoid | 376 | 17 | 512 |
 
+### 吞吐与梯度滞后（调参建议）
+
+SAC 的 trainer 每批样本会产出多条梯度，而主循环每应用一条就把 `TRAIN_VERSION` 推高一格。
+`max_gradient_lag: auto`（默认）会按实测的到达滞后自适应，把正常在途的批次也接受下来；
+仍然出现高拒绝率时，说明是**吞吐配比**问题而不是容错问题：
+
+```
+grads queue backlog depth=400/1000 (40%): trainers produce faster than the main loop applies;
+consider raising training.num_trainers (now 1) or lowering num_update_grads
+```
+
+| 现象 | 处理 |
+|---|---|
+| `queue_grads` 持续上涨 + 拒绝率 > 30% | 增加 `training.num_trainers`，或调大 `num_update_grads`（多条梯度累加为一次更新） |
+| `arrival_lag_p95` 持续大于 `max_gradient_lag_cap` | 说明消费端跟不上，同上；单纯调大 cap 只会让梯度更陈旧 |
+| 版本速率远低于采样批次速率 | 检查是否只配了 1 个 trainer（默认 1） |
+
 ### Current Limitations
 
-- **No separate target networks**: `update_state` does not soft-update target parameters
-- **No learned temperature**: α is fixed, not tuned automatically
+- **Actor/critic 同一步更新**：两者梯度在同一次 `update_state` 里按同一学习率生效
+  （多数实现用两个 optimizer 分别更新），对稳定性有轻微影响。
+- **目标 critic 不跨进程持久化**：重启后从在线权重重新初始化（见 Soft Update）。
+- **`log_alpha` 与策略共用学习率**（2.5e-4），收敛比专用 α 学习率慢。
 - **Single gradient pass per call**: `REPEAT_TIME=1`
