@@ -7,7 +7,7 @@ from typing import List
 
 Experience = collections.namedtuple(
     'Experience',
-    field_names=['state', 'action', 'reward', 'done', 'next_state'],
+    ('state', 'action', 'reward', 'done', 'next_state'),
 )
 
 
@@ -20,7 +20,7 @@ class ExperienceBuffer:
         Args:
             capacity: 最大条目数；超出后丢弃最旧元素。
         """
-        self.buffer = collections.deque(maxlen=capacity)
+        self.buffer: collections.deque = collections.deque(maxlen=capacity)
 
     def __len__(self):
         """返回当前存储的条目数。"""
@@ -62,7 +62,7 @@ class TrajectoryBuffer:
         Args:
             capacity: 最大轨迹条数。
         """
-        self.buffer = collections.deque(maxlen=capacity)
+        self.buffer: collections.deque = collections.deque(maxlen=capacity)
 
     def __len__(self):
         """返回当前轨迹条数。"""

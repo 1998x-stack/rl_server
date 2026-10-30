@@ -76,7 +76,12 @@ class AlgoBaseAgent:
     """
 
     def __init__(self):
-        pass
+        # 由宿主（checker worker）注入的"是否请求停止"回调；None 表示不打断评估。
+        self.should_stop = None
+
+    def _stop_requested(self) -> bool:
+        """宿主是否已请求停止（用于让长评估中途让出）。"""
+        return bool(self.should_stop is not None and self.should_stop())
 
     def sample_multi_envs(self, model_dict: Dict):
         """在多个并行环境中采集经验（由子类实现）。
