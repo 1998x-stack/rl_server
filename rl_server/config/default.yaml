@@ -2,19 +2,19 @@ redis:
   model:
     namespace: "${RL_RUN_ID:rl_server_default}"
     host: "${REDIS_MODEL_HOST:localhost}"
-    port: 6379
+    port: "${REDIS_MODEL_PORT:6379}"
     db: 0
     password: "${REDIS_PASSWORD:}"
   exps:
     namespace: "${RL_RUN_ID:rl_server_default}"
     host: "${REDIS_EXPS_HOST:localhost}"
-    port: 6379
+    port: "${REDIS_EXPS_PORT:6379}"
     db: 1
     password: "${REDIS_PASSWORD:}"
   grads:
     namespace: "${RL_RUN_ID:rl_server_default}"
     host: "${REDIS_GRADS_HOST:localhost}"
-    port: 6379
+    port: "${REDIS_GRADS_PORT:6379}"
     db: 2
     password: "${REDIS_PASSWORD:}"
 
@@ -25,12 +25,24 @@ training:
   num_trainers: 1
   num_update_grads: 1
   batch_update_grads_server: 10
-  max_gradient_lag: 0
+  # auto：按实测"每批梯度条数"自动推导可接受的滞后跨度（同一批样本往往一次产出多条梯度，
+  # 硬编码 1 会让同批靠后的梯度一出生就被判过期，实测丢弃 50%~90% trainer 算力）。
+  # 也可写具体整数：0 = 严格同步（仅在主循环被饿死时可行）；auto 上限由 max_gradient_lag_cap 控制。
+  max_gradient_lag: auto
+  max_gradient_lag_cap: 64
   enable_checker: true
   version_update_sample_model: 1
   version_update_calculate_model: 1
   checkpoint_interval: 100
   max_versions: 10000
+  # 每 N 个训练版本输出一行进度（含速率、队列深度、梯度接受/拒绝计数）。
+  version_log_interval: 10
+  # 启动前 N 个版本内 worker 首批梯度必然来自 version=0，单独计为 cold_start_rejected，
+  # 避免把启动瞬态混进稳态拒绝率。
+  cold_start_versions: 20
+  # 长时间没有梯度被接受（worker 崩了/算法产不出梯度）时的告警与中止阈值。
+  stall_warn_secs: 60
+  stall_fatal_secs: 300
 
 queues:
   len_grads_queue: 1000
@@ -40,4 +52,6 @@ queues:
 logging:
   level: "INFO"
   dir: "logs"
+  # 循环内重复消息（队列空、进度行、重试）的最小输出间隔秒数。
+  throttle_secs: 60
   tensorboard: true
