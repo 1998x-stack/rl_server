@@ -21,8 +21,6 @@ class TestDQNCreateSampleTrainCycle:
         net = DQNGymClassicNet()
         calc = DQNGymClassicCalculate(net)
 
-        # Generate synthetic samples: [state, action, reward, version, done]
-        # DQN calculator uses indices 0,1,2,4 (state, action, reward, done)
         samples = []
         for i in range(300):
             state = np.random.randn(4).astype(np.float32)
@@ -30,7 +28,7 @@ class TestDQNCreateSampleTrainCycle:
             reward = np.random.randn()
             version = 0
             done = bool(np.random.random() < 0.1)
-            samples.append([state, action, reward, version, done])
+            samples.append([state, action, reward, done, version])
 
         model_dict = {'TRAIN_VERSION': 0}
         params_before = [p.data.clone() for p in net.parameters()]

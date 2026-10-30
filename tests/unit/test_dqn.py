@@ -1,8 +1,49 @@
 """DQN 网络、智能体与计算器单元测试。"""
 import torch
 import numpy as np
+import pytest
 
 from rl_server.algorithms.dqn.network import DQNGymClassicNet
+
+
+@pytest.mark.parametrize("calculator_name", ["classic", "atari"])
+def test_dqn_calculator_preserves_sampler_done_field(calculator_name):
+    if calculator_name == "classic":
+        from rl_server.algorithms.dqn.calculator import DQNGymClassicCalculate
+        calculator = DQNGymClassicCalculate(DQNGymClassicNet())
+        state = np.zeros(4, dtype=np.float32)
+    else:
+        from rl_server.algorithms.dqn.atari import AtariDQNCalculate, AtariDQNNet
+        calculator = AtariDQNCalculate(AtariDQNNet())
+        state = np.zeros((84, 84, 4), dtype=np.uint8)
+
+    samples = [[state, 0, 1.0, True, 0], [state, 0, 1.0, False, 0]]
+    with pytest.raises(ValueError, match="exps is not Enough"):
+        calculator.generate_grads(samples, {"TRAIN_VERSION": 0})
+    assert bool(calculator.exps_buffer.buffer[0].done) is True
+
+
+def test_classic_sampler_resets_after_truncation():
+    from rl_server.algorithms.dqn.agent import DQNGymClassicAgent
+
+    class TruncatedEnv:
+        def step(self, _action):
+            return np.ones(4, dtype=np.float32), 1.0, False, True, {}
+
+        def reset(self):
+            return np.full(4, 2.0, dtype=np.float32), {}
+
+    agent = DQNGymClassicAgent.__new__(DQNGymClassicAgent)
+    agent.envs = [TruncatedEnv()]
+    agent.states = [np.zeros(4, dtype=np.float32)]
+    agent.num_envs = 1
+    agent.num_steps = 1
+    agent._get_sample_actions = lambda _states: [0]
+
+    samples = agent.sample_multi_envs({'TRAIN_VERSION': 0})
+
+    assert samples[0][0][3] is True
+    assert np.array_equal(agent.states[0], np.full(4, 2.0, dtype=np.float32))
 
 
 class TestDQNGymClassicNet:
@@ -47,7 +88,7 @@ class TestDQNGymClassicNet:
         params_before = [p.data.clone() for p in net.parameters()]
 
         # Create fake gradients matching parameter shapes
-        grads = [np.random.randn(*p.shape).astype(np.float32) for p in net.parameters()]
+        grads = [np.asarray(np.random.randn(*p.shape), dtype=np.float32) for p in net.parameters()]
         net.update_state(1, grads)
 
         params_after = [p.data.clone() for p in net.parameters()]
