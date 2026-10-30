@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """带噪线性层与自定义梯度缩放：用于探索与分布式训练中的梯度处理。
 """
-from typing import Any
+from typing import Any, cast
 import math
 import torch
 import torch.nn as nn
@@ -63,11 +63,15 @@ class NoisyLinear(nn.Linear):
         if not self.training:
             return super(NoisyLinear, self).forward(input)
 
-        bias: torch.Tensor | None = self.bias
+        # registered buffer 在不同版本的 torch stub 里被标注为 Tensor | Module，
+        # 用 cast 显式收敛类型（运行时无开销）。
+        epsilon_weight = cast(torch.Tensor, self.epsilon_weight)
+        bias: torch.Tensor | None = cast(torch.Tensor | None, self.bias)
         if bias is not None:
-            bias = bias + self.sigma_bias * self.epsilon_bias.data
+            epsilon_bias = cast(torch.Tensor, self.epsilon_bias)
+            bias = bias + self.sigma_bias * epsilon_bias.data
 
-        weight: torch.Tensor = self.sigma_weight * self.epsilon_weight.data + self.weight
+        weight: torch.Tensor = self.sigma_weight * epsilon_weight.data + cast(torch.Tensor, self.weight)
         return F.linear(input, weight, bias)
 
     def sample_noise(self):
