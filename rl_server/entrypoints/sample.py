@@ -30,12 +30,13 @@ def parse_args():
     return parser.parse_args()
 
 
-def _push_exps(exps_list, exps_redis, model_dict, max_queue_size, log, stats):
+def _push_exps(exps_list, exps_redis, model_redis, model_dict, max_queue_size, log, stats):
     """把一批经验推入 Redis；队列满时阻塞等待。
 
     Args:
         exps_list: ``sample_multi_envs`` 返回的经验列表。
         exps_redis: 经验队列的 ``RedisCache``。
+        model_redis: 运行退出标志所在的 ``RedisCache``。
         model_dict: 含 ``TRAIN_VERSION`` 的字典。
         max_queue_size: 队列上限，``None`` 表示不限制。
         log: 日志对象。
@@ -46,7 +47,7 @@ def _push_exps(exps_list, exps_redis, model_dict, max_queue_size, log, stats):
     """
     for exps in exps_list:
         while not should_exit():
-            if exps_redis.get_exit_flag() == 1:
+            if model_redis.get_exit_flag() == 1:
                 return EXIT_REDIS
             if exps_redis.push_exps(
                 exps, model_dict['TRAIN_VERSION'], max_queue_size=max_queue_size
@@ -158,7 +159,8 @@ def main():
             exps_list = sample_agent.sample_multi_envs(model_dict)
             if exps_list is not None:
                 exit_reason = _push_exps(
-                    exps_list, exps_redis, model_dict, max_queue_size, sample_log, stats
+                    exps_list, exps_redis, model_redis, model_dict,
+                    max_queue_size, sample_log, stats
                 )
 
             elapsed = max(time.time() - started, 1e-6)
