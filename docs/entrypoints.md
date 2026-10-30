@@ -14,6 +14,7 @@ The `rl_server/entrypoints/` package provides the CLI entrypoints for all three 
 rl_server/entrypoints/
   train.py   — Local multiprocess: main + sampler + trainer + checker
   sample.py  — Redis-distributed sampler: standalone sample process
+  trainer.py — Redis-distributed trainer: consumes experiences and publishes gradients
   grads.py   — Redis gradient aggregation server: standalone grads daemon
   check.py   — Redis-distributed checker: standalone evaluation
 ```
