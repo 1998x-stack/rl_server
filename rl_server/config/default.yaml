@@ -36,7 +36,10 @@ training:
   checkpoint_interval: 100
   max_versions: 10000
   # 每 N 个训练版本输出一行进度（含速率、队列深度、梯度接受/拒绝计数）。
+  # 第 1 个版本总会输出一行，保证短跑/冒烟也能看到指标。
   version_log_interval: 10
+  # checker 每 N 次评估输出一行进度（另有首评与每 60s 的兜底）。
+  check_log_interval: 100
   # 启动前 N 个版本内 worker 首批梯度必然来自 version=0，单独计为 cold_start_rejected，
   # 避免把启动瞬态混进稳态拒绝率。
   cold_start_versions: 20

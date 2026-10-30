@@ -1,6 +1,6 @@
 {
   "unit": {
-    "tests": 238
+    "tests": 239
   },
   "lint": {
     "findings": 0
@@ -23,31 +23,31 @@
       "metric_trends": {
         "reject_pct": {
           "first": 0.0,
-          "last": 1.0
+          "last": 0.9
         },
         "queue_grads": {
-          "first": 14.0,
-          "last": 1.0
+          "first": 13.0,
+          "last": 0.0
         },
         "sample_lag": {
-          "first": 10.0,
-          "last": 97.0
+          "first": 1.0,
+          "last": 109.0
         },
         "arrival_lag_p95": {
-          "first": 9.0,
+          "first": 0.0,
           "last": 12.0
         },
         "q_loss": {
-          "first": 0.01602,
-          "last": 0.01503
+          "first": 0.0157,
+          "last": 0.01536
         },
         "grad_norm": {
-          "first": 2.787,
-          "last": 3.296
+          "first": 2.962,
+          "last": 3.423
         }
       },
-      "reject_pct": 1.0,
-      "log_lines_per_version": 0.36
+      "reject_pct": 0.9,
+      "log_lines_per_version": 0.34
     },
     "MujocoNormal": {
       "versions_per_sec": 7.38,
@@ -65,39 +65,39 @@
       "metric_trends": {
         "reject_pct": {
           "first": 0.0,
-          "last": 13.0
+          "last": 2.8
         },
         "queue_grads": {
-          "first": 36.0,
-          "last": 7.0
+          "first": 30.0,
+          "last": 20.0
         },
         "sample_lag": {
-          "first": 10.0,
-          "last": 16.0
+          "first": 1.0,
+          "last": 18.0
         },
         "arrival_lag_p95": {
-          "first": 9.0,
-          "last": 23.0
+          "first": 0.0,
+          "last": 20.0
         },
         "policy_loss": {
-          "first": 22.29,
-          "last": 18.69
+          "first": 21.05,
+          "last": 20.32
         },
         "value_loss": {
-          "first": 2023.0,
-          "last": 1345.0
+          "first": 1796.0,
+          "last": 1593.0
         },
         "entropy": {
           "first": -0.1838,
-          "last": -0.1849
+          "last": -0.1851
         },
         "grad_norm": {
-          "first": 979.5,
-          "last": 1085.0
+          "first": 893.0,
+          "last": 1385.0
         }
       },
-      "reject_pct": 13.0,
-      "log_lines_per_version": 0.52
+      "reject_pct": 2.6,
+      "log_lines_per_version": 0.45
     },
     "MujocoBeta": {
       "versions_per_sec": 6.95,
@@ -115,42 +115,42 @@
       "metric_trends": {
         "reject_pct": {
           "first": 0.0,
-          "last": 11.8
+          "last": 9.9
         },
         "queue_grads": {
-          "first": 35.0,
-          "last": 10.0
+          "first": 31.0,
+          "last": 6.0
         },
         "sample_lag": {
-          "first": 10.0,
-          "last": 15.0
+          "first": 1.0,
+          "last": 58.0
         },
         "arrival_lag_p95": {
-          "first": 9.0,
-          "last": 23.0
+          "first": 0.0,
+          "last": 24.0
         },
         "policy_loss": {
-          "first": -0.113,
-          "last": -0.498
+          "first": -0.2162,
+          "last": 0.09315
         },
         "value_loss": {
-          "first": 8.204,
-          "last": 14.26
+          "first": 11.95,
+          "last": 5.969
         },
         "entropy": {
-          "first": 0.01475,
-          "last": 0.01582
+          "first": 0.01504,
+          "last": 0.01561
         },
         "grad_norm": {
-          "first": 5.122,
-          "last": 7.823
+          "first": 6.621,
+          "last": 6.608
         }
       },
-      "reject_pct": 11.8,
-      "log_lines_per_version": 0.52
+      "reject_pct": 9.8,
+      "log_lines_per_version": 0.37
     },
     "SACMujocoNormal": {
-      "versions_per_sec": 5.47,
+      "versions_per_sec": 5.64,
       "versions": 30,
       "metric_names": [
         "actor_loss",
@@ -167,47 +167,47 @@
       "metric_trends": {
         "reject_pct": {
           "first": 0.0,
-          "last": 31.5
+          "last": 25.9
         },
         "queue_grads": {
-          "first": 54.0,
-          "last": 44.0
+          "first": 63.0,
+          "last": 9.0
         },
         "sample_lag": {
-          "first": 10.0,
-          "last": 20.0
+          "first": 1.0,
+          "last": 48.0
         },
         "arrival_lag_p95": {
-          "first": 9.0,
-          "last": 29.0
+          "first": 0.0,
+          "last": 30.0
         },
         "q_loss": {
-          "first": 0.5312,
-          "last": 0.3969
+          "first": 0.5323,
+          "last": 0.5041
         },
         "actor_loss": {
-          "first": -0.2345,
-          "last": 0.0167
+          "first": -0.2165,
+          "last": -0.01734
         },
         "alpha_loss": {
-          "first": -4.87,
-          "last": -5.053
+          "first": -4.76,
+          "last": -5.117
         },
         "entropy": {
-          "first": 3.295,
-          "last": 2.822
+          "first": 3.296,
+          "last": 2.44
         },
         "alpha": {
           "first": 0.2,
-          "last": 0.1978
+          "last": 0.1971
         },
         "grad_norm": {
-          "first": 3.996,
-          "last": 3.315
+          "first": 3.9,
+          "last": 3.806
         }
       },
-      "reject_pct": 29.9,
-      "log_lines_per_version": 0.57
+      "reject_pct": 28.2,
+      "log_lines_per_version": 0.42
     },
     "TD3MujocoNormal": {
       "versions_per_sec": 7.58,
@@ -224,35 +224,35 @@
       "metric_trends": {
         "reject_pct": {
           "first": 0.0,
-          "last": 4.8
+          "last": 0.0
         },
         "queue_grads": {
-          "first": 18.0,
-          "last": 2.0
+          "first": 21.0,
+          "last": 0.0
         },
         "sample_lag": {
-          "first": 10.0,
-          "last": 4.0
+          "first": 1.0,
+          "last": 41.0
         },
         "arrival_lag_p95": {
-          "first": 9.0,
+          "first": 0.0,
           "last": 15.0
         },
         "q_loss": {
-          "first": 0.1848,
-          "last": 0.09996
+          "first": 0.2194,
+          "last": 0.08271
         },
         "entropy": {
           "first": 0.9189,
-          "last": 0.913
+          "last": 0.9093
         },
         "grad_norm": {
-          "first": 2.061,
-          "last": 1.195
+          "first": 3.653,
+          "last": 0.8368
         }
       },
-      "reject_pct": 4.5,
-      "log_lines_per_version": 0.49
+      "reject_pct": 0.0,
+      "log_lines_per_version": 0.33
     },
     "MicroRTS": {
       "versions_per_sec": 3.34,
@@ -274,20 +274,20 @@
           "last": 0.0
         },
         "sample_lag": {
-          "first": 9.0,
-          "last": 13.0
+          "first": 1.0,
+          "last": 8.0
         },
         "arrival_lag_p95": {
           "first": 0.0,
-          "last": 0.0
+          "last": 1.0
         },
         "grad_norm": {
-          "first": 7.596,
-          "last": 2.391
+          "first": 1.642,
+          "last": 4.449
         }
       },
       "reject_pct": 0.0,
-      "log_lines_per_version": 0.77
+      "log_lines_per_version": 0.6
     },
     "DQNAtari": {
       "versions_per_sec": 2.28,
@@ -309,32 +309,32 @@
           "last": 0.0
         },
         "queue_grads": {
-          "first": 0.0,
+          "first": 2.0,
           "last": 0.0
         },
         "sample_lag": {
-          "first": 10.0,
-          "last": 20.0
+          "first": 1.0,
+          "last": 30.0
         },
         "arrival_lag_p95": {
-          "first": 3.0,
+          "first": 0.0,
           "last": 2.0
         },
         "q_loss": {
-          "first": 150.8,
-          "last": 30.13
+          "first": 10.35,
+          "last": 26.86
         },
         "grad_norm_preclip": {
-          "first": 11110.0,
-          "last": 9019.0
+          "first": 3025.0,
+          "last": 9364.0
         },
         "clip_frac": {
           "first": 1.0,
           "last": 1.0
         },
         "grad_scale": {
-          "first": 1111.0,
-          "last": 901.9
+          "first": 302.5,
+          "last": 936.4
         },
         "grad_norm": {
           "first": 10.0,
@@ -342,7 +342,7 @@
         }
       },
       "reject_pct": 0.0,
-      "log_lines_per_version": 0.9
+      "log_lines_per_version": 0.85
     }
   },
   "host": {
