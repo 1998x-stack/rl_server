@@ -10,6 +10,18 @@ description: Dueling DQN with NoisyNet — discrete-action deep Q-learning
 
 DQN in RL Server uses Dueling architecture (state value + advantage streams) with optional NoisyNet and ε-greedy exploration.
 
+## Atari 数值稳定性
+
+`AtariDQNCalculate` 使用与标准 DQN 一致的两项处理：
+
+- **奖励截断**到 `[-1, 1]`（原始奖励未归一化时 Q 目标会爆炸：实测 `q_loss≈1e5`、
+  裁剪前梯度范数 `≈2.5e7`）；
+- 损失改为 **Huber（smooth L1）**，对离群 TD 误差更稳。
+
+同时上报 `grad_norm_preclip`（裁剪前范数）、`clip_frac`（本批是否触发裁剪）、
+`grad_scale`（原始范数 / 裁剪上限），避免"post-clip grad_norm=10"掩盖梯度尺度问题——
+修复后 20s 内 `q_loss` 从 1e5 量级降到 ~15，`grad_scale` 从 2.5e6 降到 ~1e3 并继续下降。
+
 ## Files
 
 ```

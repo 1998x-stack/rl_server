@@ -38,13 +38,17 @@ class DQNGymClassicAgent(AlgoBaseAgent):
         """并行运行 ``NUM_STEPS`` 步，返回每个子环境一条转移序列（含 ``TRAIN_VERSION``）。"""
         exps = [[] for _ in range(self.num_envs)]
         for _ in range(self.num_steps):
+            # 采样中途响应退出请求：否则一次 rollout（MuJoCo 数秒、MicroRTS 更久）
+            # 期间 worker 无法退出，只能等满 grace 后被 terminate（env/JVM 清理全丢）。
+            if model_dict.get('is_exit'):
+                return None
             actions = self._get_sample_actions(self.states)
             for i in range(self.num_envs):
                 next_state_n, reward_n, done_n, truncated, _ = self.envs[i].step(actions[i])
-                if done_n:
+                if done_n or truncated:
                     next_state_n = self.envs[i].reset()[0]
 
-                exps[i].append([self.states[i], actions[i], reward_n, done_n, model_dict['TRAIN_VERSION']])
+                exps[i].append([self.states[i], actions[i], reward_n, done_n or truncated, model_dict['TRAIN_VERSION']])
                 self.states[i] = next_state_n
 
         return exps
@@ -57,15 +61,19 @@ class DQNGymClassicAgent(AlgoBaseAgent):
         step_record_dict = dict()
 
         while True:
+            # 评估中途让出：否则一次回合要跑满（MuJoCo 数秒、MicroRTS 更久），
+            # worker 只能被 SIGTERM 强杀，env/JVM 与 semaphore 都来不及清理。
+            if self._stop_requested():
+                return None
             action = self._get_single_action(self.states)
             next_state_n, reward_n, is_done, truncated, _ = self.envs.step(action)
-            if is_done:
+            if is_done or truncated:
                 next_state_n = self.envs.reset()[0]
             self.states = next_state_n
             rewards.append(reward_n)
             actions.append(action)
 
-            if is_done:
+            if is_done or truncated:
                 break
 
         step_record_dict['sum_rewards'] = np.sum(rewards)

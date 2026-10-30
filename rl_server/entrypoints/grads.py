@@ -39,10 +39,9 @@ def main():
     )
     config = load_config(config_path, args.override)
 
-    grads_log = Log("grads_main")
+    grads_log = Log.from_config(config, "grads_main")
 
     env_name = args.env_name or config.get('training', {}).get('env_name', 'DQNGymClassic')
-    grads_log.log_info(f"Gradient server starting for env: {env_name}")
 
     redis_cfg = config.get('redis', {})
     grads_redis_config = {
@@ -61,6 +60,16 @@ def main():
     }
 
     batch_count = config.get('training', {}).get('batch_update_grads_server', 10)
+    max_gradient_lag = config.get('training', {}).get('max_gradient_lag', 'auto')
+
+    # 启动即写清拓扑与聚合参数，排查时不必再回头读代码。
+    grads_log.log_info(
+        f"start env={env_name} pid={os.getpid()} prefix={args.prefix} "
+        f"grads_redis={grads_redis_config['ip']}:{grads_redis_config['port']}/db{grads_redis_config['db']} "
+        f"model_redis={model_redis_config['ip']}:{model_redis_config['port']}/db{model_redis_config['db']} "
+        f"namespace={model_redis_config['namespace']} batch_update_count={batch_count} "
+        f"max_gradient_lag={max_gradient_lag}"
+    )
 
     aggregator = GradsAggregator(
         env_name=env_name,
@@ -68,7 +77,7 @@ def main():
         grads_redis_config=grads_redis_config,
         model_redis_config=model_redis_config,
         batch_update_count=batch_count,
-        max_gradient_lag=config.get('training', {}).get('max_gradient_lag', 0),
+        max_gradient_lag=max_gradient_lag,
         log=grads_log
     )
 

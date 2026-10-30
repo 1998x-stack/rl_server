@@ -69,6 +69,12 @@ Redis-backed queues; each worker is an independent process with no shared memory
 | **SAC** | `SACMujocoNormal` | Continuous | Dual Q-networks, entropy regularization |
 | **TD3** | `TD3MujocoNormal` | Continuous (deterministic) | Clipped double Q, delayed updates |
 
+## Maintainers
+
+- [Handoff (2026-10-30)](handoff-2026-10-30.md) — 本次可观测性/训练修复/检查管线的交接说明：不变量、运行方式、调试手册、待决项
+- [Logging audit (2026-10-30)](logging-audit-2026-10-30.md) — 日志过载与缺失的量化、根因与修复过程
+- [Isolated checks & evaluation](checks.md) — 隔离运行器 + 独立评测器 + LLM judge
+
 ## Testing
 
 ```bash

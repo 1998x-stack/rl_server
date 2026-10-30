@@ -126,13 +126,21 @@ Raises `ValueError` if a section or required key is missing.
 | | num_trainers | 1 | Trainer worker count |
 | | num_update_grads | 1 | Grads accumulated before update |
 | | batch_update_grads_server | 10 | Grads batch for grads server mode |
+| | max_gradient_lag | auto | 允许的梯度版本滞后；`auto` 按实测到达滞后自适应，整数则固定；0 = 严格同步（会丢掉在途批次） |
+| | max_gradient_lag_cap | 64 | `auto` 模式下的滞后上限 |
+| | version_log_interval | 10 | 每 N 个版本输出一行进度 |
+| | check_log_interval | 100 | checker 每 N 次评估输出一条进度 |
+| | cold_start_versions | 20 | 启动前 N 个版本的梯度拒绝单独计为 `cold_start_rejected` |
+| | stall_warn_secs | 60 | 无梯度被接受多久后告警 |
+| | stall_fatal_secs | 300 | 无梯度被接受多久后中止（退出码 1） |
 | | enable_checker | true | Whether to run eval worker |
 | | checkpoint_interval | 100 | Save every N versions |
 | | max_versions | 10000 | Max checkpoint files retained |
 | `queues` | len_grads_queue | 1000 | Maxsize for gradient mp.Queue |
 | | len_sample_queue | 1000 | Maxsize for sample mp.Queue |
-| `logging` | level | INFO | Console log level |
-| | dir | logs | Log directory |
+| `logging` | level | INFO | Console log level (file always records DEBUG) |
+| | dir | logs | Log root directory |
+| | throttle_secs | 60 | 循环内重复消息的最小输出间隔 |
 | | tensorboard | true | Enable TensorBoard writer |
 
 ## dev.yaml — Development Override

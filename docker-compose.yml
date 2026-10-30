@@ -23,7 +23,26 @@ services:
     command: >
       python -m rl_server.entrypoints.grads
       --config rl_server/config/default.yaml
-      --env-name MujocoNormal
+      --env-name DQNGymClassic
+
+  trainer:
+    build: .
+    image: rl_server:latest
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+      grads:
+        condition: service_started
+    environment:
+      - REDIS_MODEL_HOST=redis
+      - REDIS_EXPS_HOST=redis
+      - REDIS_GRADS_HOST=redis
+      - REDIS_PASSWORD=
+    command: >
+      python -m rl_server.entrypoints.trainer
+      --config rl_server/config/default.yaml
+      --env-name DQNGymClassic
 
   sampler:
     build: .
@@ -42,7 +61,7 @@ services:
     command: >
       python -m rl_server.entrypoints.sample
       --config rl_server/config/default.yaml
-      --env-name MujocoNormal
+      --env-name DQNGymClassic
 
   checker:
     build: .
@@ -61,4 +80,4 @@ services:
     command: >
       python -m rl_server.entrypoints.check
       --config rl_server/config/default.yaml
-      --env-name MujocoNormal
+      --env-name DQNGymClassic

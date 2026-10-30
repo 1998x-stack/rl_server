@@ -164,18 +164,21 @@ python -m rl_server.entrypoints.train --config rl_server/config/default.yaml
 
 ```bash
 # Machine 1: Gradient aggregation server
-python -m rl_server.entrypoints.grads --env-name MujocoNormal
+python -m rl_server.entrypoints.grads --env-name DQNGymClassic
 
-# Machines 2..N: Samplers (scale horizontally)
-python -m rl_server.entrypoints.sample --env-name MujocoNormal
+# Machine 2: Redis trainer
+python -m rl_server.entrypoints.trainer --env-name DQNGymClassic
+
+# Machines 3..N: Samplers (scale horizontally)
+python -m rl_server.entrypoints.sample --env-name DQNGymClassic
 
 # Optional: Evaluation
-python -m rl_server.entrypoints.check --env-name MujocoNormal
+python -m rl_server.entrypoints.check --env-name DQNGymClassic
 ```
 
 - Redis-backed queues replace `mp.Queue`
 - Each worker is an independent process — no shared memory
-- Model weights, experiences, and gradients flow through Redis lists
+- Model snapshots, experiences, and gradients flow through Redis
 
 ### Mode 3: Gradient Aggregation Server (standalone daemon)
 
@@ -305,7 +308,7 @@ rl_server/
   algorithms/   dqn/ ppo/ sac/ td3/
   config/       loader.py, default.yaml, dev.yaml
   core/         base.py, buffers.py, noisy.py, actions.py
-  entrypoints/  train.py, sample.py, grads.py, check.py
+  entrypoints/  train.py, sample.py, trainer.py, grads.py, check.py
   transport/    redis_cache.py, serializer
   utils/        checkpoint.py, logging.py, process.py
   workers/      sampler.py, trainer.py, checker.py, grads_aggregator.py

@@ -13,6 +13,7 @@ from gym_microrts import microrts_ai
 from gym_microrts.envs.vec_env import MicroRTSVecEnv
 
 from rl_server.core.base import AlgoBaseNet, AlgoBaseAgent, AlgoBaseCalculate, layer_init
+from rl_server.core.optim import assign_gradients, trainable_parameters
 
 # Training parameters
 TRAIN_CONFIG = dict()
@@ -37,6 +38,8 @@ MODEL_CONFIG['NUM_ENVS'] = 8
 MODEL_CONFIG['NUM_STEPS'] = 512
 MODEL_CONFIG['OBS_SPACE'] = (10, 10, 27)
 MODEL_CONFIG['ACTION_SHAPE'] = [100, 6, 4, 4, 4, 4, 7, 49]
+# 分段动作空间各段的长度（用于把拼接的 mask 切回每段）。
+ACTION_SPACE = list(MODEL_CONFIG['ACTION_SHAPE'])
 MODEL_CONFIG['DEVICE'] = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 
@@ -112,14 +115,28 @@ class MaskedCategorical(Categorical):
             raise RuntimeError("Logic error, check initialization parameters")
 
     def entropy(self):
-        if self.action_masks is None:
+        """在掩码支撑集上计算熵。
+
+        旧实现先 `probs * masks` 再归一化：整行都被掩掉时 `0/0` 产生 NaN，
+        `nansum` 前向能凑成 0，但**反向会把这些 NaN 传回 logits**，于是整批梯度变成
+        NaN（实测 24 个参数里 22 个 NaN，训练完全学不动）。这里改为在 log 域用
+        `log_softmax`，并把 -inf（被掩掉的动作）显式置 0 参与求和。
+        """
+        if self.action_masks is None or self.action_masks.numel() == 0:
             return super().entropy()
 
-        valid_probs = self.probs * self.action_masks
-        valid_probs = valid_probs / valid_probs.sum(-1, keepdim=True)
-
-        p_log_p = valid_probs * torch.log(valid_probs + 1e-8)
-        return -p_log_p.nansum(dim=-1)
+        masks = self.action_masks
+        logits = self.logits
+        all_masked = ~masks.any(dim=-1, keepdim=True)
+        if bool(all_masked.any()):
+            # 与 _apply_action_masks 一致：整行全掩时退回原始 logits，保持梯度有限。
+            logits = torch.where(all_masked.expand_as(logits),
+                                 torch.zeros_like(logits), logits)
+        log_probs = torch.log_softmax(logits, dim=-1)
+        # -inf 只可能来自被掩掉的动作；它们对熵没有贡献，但会让反向传播产生 NaN。
+        log_probs = torch.where(torch.isfinite(log_probs), log_probs,
+                                torch.zeros_like(log_probs))
+        return -(log_probs.exp() * log_probs).sum(dim=-1)
 
     def argmax(self):
         return (self.probs * self.action_masks).argmax(dim=-1)
@@ -169,9 +186,9 @@ class MicroRTSNet(AlgoBaseNet):
         ], self.critic(obs)
 
     def update_state(self, version, grads_buffer):
+        params = trainable_parameters(self)
         self.train_optim.zero_grad()
-        for param, grad in zip(self.parameters(), grads_buffer):
-            param.grad = torch.FloatTensor(grad)
+        assign_gradients(params, grads_buffer)
         self.train_optim.step()
 
 
@@ -274,6 +291,10 @@ class MicroRTSAgent(AlgoBaseAgent):
         exps = [[] for _ in range(self.num_envs)]
         if self.num_steps > 0:
             for _ in range(0, self.num_steps):
+                # 采样中途响应退出请求：否则一次 rollout（MuJoCo 数秒、MicroRTS 更久）
+                # 期间 worker 无法退出，只能等满 grace 后被 terminate（env/JVM 清理全丢）。
+                if model_dict.get('is_exit'):
+                    return None
                 self.steps = self.steps + 1
                 unit_mask = np.array(self.env.vec_client.getUnitLocationMasks()).reshape(self.num_envs, -1)
                 with torch.no_grad():
@@ -291,6 +312,10 @@ class MicroRTSAgent(AlgoBaseAgent):
         step_record_dict['total_reward'] = 0
 
         for _ in range(0, 512):
+            # 评估中途让出：否则一次回合要跑满（MuJoCo 数秒、MicroRTS 更久），
+            # worker 只能被 SIGTERM 强杀，env/JVM 与 semaphore 都来不及清理。
+            if self._stop_requested():
+                return None
             unit_mask = np.array(self.env.vec_client.getUnitLocationMasks()).reshape(self.num_check_single_envs, -1)
             with torch.no_grad():
                 action = self._get_single_action(states=torch.Tensor(self.obs), type_masks=unit_mask)
@@ -303,7 +328,6 @@ class MicroRTSAgent(AlgoBaseAgent):
                         self.outcomes.append(1)
                     else:
                         self.outcomes.append(0)
-                    print(sum(self.outcomes) / len(self.outcomes))
                     step_record_dict['outcomes'] = sum(self.outcomes) / len(self.outcomes)
                     step_record_dict['reward'] = sum(self.rewards) / len(self.rewards)
                     if i == 0:
@@ -373,6 +397,13 @@ class MicroRTSCalculate(AlgoBaseCalculate):
         b_advantages = b_advantages.reshape(-1, 1)
         new_log_prob = new_log_prob.to(self.model_config['DEVICE'])
         entropy = entropy.to(self.model_config['DEVICE'])
+        # 掩码动作的 log_prob 可能是 -inf：一旦参与 exp(-inf - -inf) 就是 NaN，
+        # 因此先把两边的 log_prob 夹到有限下界（只影响被掩掉的非法动作）。
+        log_prob_floor = -20.0
+        new_log_prob = torch.nan_to_num(new_log_prob, nan=log_prob_floor,
+                                        neginf=log_prob_floor).clamp(min=log_prob_floor, max=0.0)
+        b_log_probs = torch.nan_to_num(b_log_probs, nan=log_prob_floor,
+                                       neginf=log_prob_floor).clamp(min=log_prob_floor, max=0.0)
         ratio1 = (new_log_prob - b_log_probs).exp()
         ratio2 = (new_log_prob.sum(1) - b_log_probs.sum(1)).exp().reshape(-1, 1).expand_as(ratio1)
         ratio3 = (ratio1 + ratio2) / 2
@@ -394,7 +425,8 @@ class MicroRTSCalculate(AlgoBaseCalculate):
 
         return [grads], train_version
 
-    def get_prob_entropy_value(self, states, actions, masks, action_space=[100, 6, 4, 4, 4, 4, 7, 49]):
+    def get_prob_entropy_value(self, states, actions, masks, action_space=None):
+        action_space = action_space or ACTION_SPACE
         split_logits, values = self.calculate_net(states)
         split_masks = torch.split(masks, action_space, dim=1)
         multi_categoricals = [

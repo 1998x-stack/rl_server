@@ -31,7 +31,7 @@ class TestDQNSmoke:
     def test_update_state_changes_params(self):
         net = self._make_net()
         params_before = [p.data.clone() for p in net.parameters()]
-        grads = [np.random.randn(*p.shape).astype(np.float32) for p in net.parameters()]
+        grads = [np.asarray(np.random.randn(*p.shape), dtype=np.float32) for p in net.parameters()]
         net.update_state(1, grads)
         changed = any(not torch.allclose(b, a) for b, a in zip(params_before, list(p.data for p in net.parameters())))
         assert changed
@@ -87,7 +87,7 @@ class TestPPONormalSmoke:
     def test_update_state(self):
         net = self._make_net()
         params_before = [p.data.clone() for p in net.parameters()]
-        grads = [np.random.randn(*p.shape).astype(np.float32) for p in net.parameters()]
+        grads = [np.asarray(np.random.randn(*p.shape), dtype=np.float32) for p in net.parameters()]
         net.update_state(1, grads)
         changed = any(not torch.allclose(b, a) for b, a in zip(params_before, list(p.data for p in net.parameters())))
         assert changed
@@ -129,7 +129,7 @@ class TestPPOBetaSmoke:
     def test_update_state(self):
         net = self._make_net()
         params_before = [p.data.clone() for p in net.parameters()]
-        grads = [np.random.randn(*p.shape).astype(np.float32) for p in net.parameters()]
+        grads = [np.asarray(np.random.randn(*p.shape), dtype=np.float32) for p in net.parameters()]
         net.update_state(1, grads)
         changed = any(not torch.allclose(b, a) for b, a in zip(params_before, list(p.data for p in net.parameters())))
         assert changed
@@ -183,11 +183,15 @@ class TestSACSmoke:
         assert mu_q.shape == (3, 1)
 
     def test_update_state(self):
+        from rl_server.core.optim import trainable_parameters
+
         net = self._make_net()
-        params_before = [p.data.clone() for p in net.parameters()]
-        grads = [np.random.randn(*p.shape).astype(np.float32) for p in net.parameters()]
+        # 目标 critic 是 requires_grad=False 的参数，不参与聚合 / update_state。
+        params = trainable_parameters(net)
+        params_before = [p.data.clone() for p in params]
+        grads = [np.asarray(np.random.randn(*p.shape), dtype=np.float32) for p in params]
         net.update_state(1, grads)
-        changed = any(not torch.allclose(b, a) for b, a in zip(params_before, list(p.data for p in net.parameters())))
+        changed = any(not torch.allclose(b, a) for b, a in zip(params_before, params))
         assert changed
 
 
@@ -241,7 +245,7 @@ class TestTD3Smoke:
     def test_update_state(self):
         net = self._make_net()
         params_before = [p.data.clone() for p in net.parameters()]
-        grads = [np.random.randn(*p.shape).astype(np.float32) for p in net.parameters()]
+        grads = [np.asarray(np.random.randn(*p.shape), dtype=np.float32) for p in net.parameters()]
         net.update_state(1, grads)
         changed = any(not torch.allclose(b, a) for b, a in zip(params_before, list(p.data for p in net.parameters())))
         assert changed

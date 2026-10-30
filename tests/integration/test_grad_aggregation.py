@@ -12,8 +12,8 @@ class TestGradAggregation:
         params_before = [p.data.clone() for p in net.parameters()]
 
         # Generate two sets of gradients
-        grads1 = [np.random.randn(*p.shape).astype(np.float32) * 0.01 for p in net.parameters()]
-        grads2 = [np.random.randn(*p.shape).astype(np.float32) * 0.01 for p in net.parameters()]
+        grads1 = [np.asarray(np.random.randn(*p.shape), dtype=np.float32) * 0.01 for p in net.parameters()]
+        grads2 = [np.asarray(np.random.randn(*p.shape), dtype=np.float32) * 0.01 for p in net.parameters()]
 
         # Accumulate
         accumulated = [g1 + g2 for g1, g2 in zip(grads1, grads2)]

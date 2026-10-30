@@ -1,11 +1,22 @@
 # -*- coding: utf-8 -*-
 """带噪线性层与自定义梯度缩放：用于探索与分布式训练中的梯度处理。
 """
+from typing import Any, cast
 import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.autograd as autograd
+
+
+def _as_tensor(value: Any) -> torch.Tensor:
+    """把 ``nn.Module`` 上的属性/缓冲区收敛成 ``Tensor``。
+
+    不同版本的 torch stub 对 ``weight``/registered buffer 的标注不一致
+    （``Tensor`` vs ``Tensor | Module``），直接 cast 既可能在 A 版本被判定"冗余"、
+    又在 B 版本被判定"不兼容"。参数类型是 ``Any`` 的这里做一次收敛，两个版本都稳定。
+    """
+    return cast(torch.Tensor, value)
 
 
 class NoisyLinear(nn.Linear):
@@ -62,12 +73,13 @@ class NoisyLinear(nn.Linear):
         if not self.training:
             return super(NoisyLinear, self).forward(input)
 
-        bias = self.bias
+        epsilon_weight = _as_tensor(self.epsilon_weight)
+        bias = None if self.bias is None else _as_tensor(self.bias)
         if bias is not None:
-            bias = bias + self.sigma_bias * self.epsilon_bias.data
+            bias = bias + _as_tensor(self.sigma_bias) * _as_tensor(self.epsilon_bias).data
 
-        v = self.sigma_weight * self.epsilon_weight.data + self.weight
-        return F.linear(input, v, bias)
+        weight = _as_tensor(self.sigma_weight) * epsilon_weight.data + _as_tensor(self.weight)
+        return F.linear(input, weight, bias)
 
     def sample_noise(self):
         """为权重与偏置噪声缓冲区重新采样标准正态分布。"""
@@ -79,7 +91,7 @@ class NoisyLinear(nn.Linear):
 class GradCoef(autograd.Function):
     """自定义 autograd：前向恒等，反向将梯度乘以给定系数。"""
     @staticmethod
-    def forward(ctx: autograd.Function, x: torch.Tensor, coeff: float):
+    def forward(ctx: Any, x: torch.Tensor, coeff: float):
         """前向：原样返回 ``x``。
 
         Args:
@@ -94,7 +106,7 @@ class GradCoef(autograd.Function):
         return x.view_as(x)
 
     @staticmethod
-    def backward(ctx: autograd.Function, grad_output: torch.Tensor):
+    def backward(ctx: Any, grad_output: torch.Tensor):
         """反向：``grad_input = coeff * grad_output``。
 
         Args:

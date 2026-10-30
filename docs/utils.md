@@ -85,9 +85,12 @@ Finds the latest `.td` file matching the prefix (and optional version) by modifi
 ### `Log` Class
 
 ```python
-log = Log('train_main_local')
-log.log_info('Training started')
-log.log_exception()   # Auto-captures and deduplicates traceback
+log = Log('train_main_local')            # 或 Log.from_config(config, 'train_main_local')
+log.info('training started')
+log.info_throttled('queue_empty', 'queue empty')   # 60s 内只输出一次，其余计数
+log.info_every('progress', 10, 'version=10')       # 每 10 次输出一次
+log.exception('train main loop')                   # 带上下文 + 折叠重复 traceback
+log.summary({'version': 100})                      # 退出前汇总折叠统计
 ```
 
 #### Features
@@ -95,37 +98,38 @@ log.log_exception()   # Auto-captures and deduplicates traceback
 | Feature | Detail |
 |---------|--------|
 | **Rotating file handler** | 50 MB per file, 3 backups, UTF-8, `logs/{dir_name}/{dir_name}.log` |
-| **Console output** | Same format as file, INFO level by default |
-| **Format** | `[2026-01-01 12:00:00] [INFO] [train_main_local:12345] message` |
-| **Exception dedup** | Same exception folded to `(repeated N times, last at HH:MM:SS)` |
+| **Per-process files** | 子进程写 `logs/{dir_name}/{dir_name}.{pid}.log`，避免多进程同时轮转同一个文件 |
+| **Console output** | Same format as file, level from `logging.level` |
+| **Format** | `[2026-01-01 12:00:00.123] [INFO] [train_main_local:MainProcess:12345] message` |
+| **Spawn-safe** | `Log` is pickled into workers and rebuilds its handlers there (worker logs used to vanish) |
+| **Throttling** | `info_throttled` / `warning_throttled` / `info_every` / `once` |
 | **Legacy compat** | `log_info()` / `log_exception()` aliases for old code |
+
+#### Levels
+
+`logger` is always at DEBUG; the **file handler** records DEBUG, the **console handler** honours
+`logging.level`. That is what makes "file always DEBUG" actually true — before this, the logger's
+own level filtered DEBUG out of the file as well.
 
 #### Exception Deduplication
 
-Repeated exceptions in tight loops won't fill the log with identical tracebacks.
+Repeated exceptions in tight loops must not bury the log, but must not disappear either.
 
 | Condition | Behavior |
 |-----------|----------|
-| First occurrence | Full traceback + context |
-| Repeat (within throttle) | Silently skipped |
-| Every 60th repeat | Full traceback + `(repeated 60 times over 300s)` |
-| Every 5 minutes | Full traceback + count |
+| First occurrence | Full traceback + `type=`, `origin=`, `value=` |
+| Repeat | Counted, not printed |
+| Every `exc_report_secs` (default 60s) | One line: `repeated=N suppressed=M first=HH:MM:SS last=HH:MM:SS` |
+| `log.summary()` at exit | One line per distinct exception with total `count=` |
 
-Dedup key: `f"{exc_type.__name__}:{exc_value}"` — different exceptions are tracked separately.
+Dedup key: `(exception type, deepest stack frame, digit-normalized message)`. The old key
+`f"{type}:{value}"` never folded messages that embed ids/counters, and merged unrelated call sites
+that happened to share text.
 
-#### Logging Levels
+#### `setup_logging(dir_name, level='INFO', max_bytes=52428800, backup_count=3, base_dir=None, pid_suffix='')`
 
-| Method | File | Console (default) |
-|--------|------|-------------------|
-| `log.debug()` | ✅ Always | ❌ |
-| `log.info()` | ✅ | ✅ (INFO level) |
-| `log.warning()` | ✅ | ✅ |
-| `log.error()` | ✅ | ✅ |
-| `log.exception()` | ✅ | ✅ (with dedup) |
-
-#### `setup_logging(dir_name, level='INFO', max_bytes=52428800, backup_count=3)`
-
-Lower-level function that creates a `logging.Logger` with `RotatingFileHandler` and `StreamHandler`. Returns the `Logger` object. Called by `Log.__init__()`.
+Lower-level function that creates a `logging.Logger` with `RotatingFileHandler` and `StreamHandler`.
+Returns the `Logger` object. Called by `Log.__init__()`.
 
 ---
 

@@ -46,10 +46,13 @@ def main():
     )
     config = load_config(config_path, args.override)
 
-    check_log = Log("checker")
+    check_log = Log.from_config(config, "checker")
 
     env_name = args.env_name or config.get('training', {}).get('env_name', 'DQNGymClassic')
-    check_log.log_info(f"Checker starting for env: {env_name}")
+    check_log.log_info(
+        f"start env={env_name} pid={os.getpid()} prefix={args.prefix} "
+        f"version={args.version or 'latest'} episodes={args.episodes or 'continuous'}"
+    )
 
     check_net = create_net(env_name)
     check_agent = create_agent(env_name, check_net, is_checker=True)
@@ -57,29 +60,38 @@ def main():
     if args.version:
         loaded_version = load_model(check_net, f"{args.prefix}_{env_name}", args.version)
         if loaded_version is None:
-            check_log.log_info(f"Could not load model version {args.version}")
+            check_log.warning(f"could not load model version={args.version} prefix={args.prefix}_{env_name}")
         else:
-            check_log.log_info(f"Loaded model version {loaded_version}")
+            check_log.log_info(f"loaded model version={loaded_version}")
 
     check_net.train(False)
     writer = SummaryWriter(comment="checker")
 
     episode = 0
+    started = time.time()
     check_log.log_info("Checker running")
 
     while True:
         try:
             if should_exit():
-                check_log.log_info("Checker shutting down")
                 break
 
             infos = check_agent.check_single_env()
             if isinstance(infos, dict):
                 for key, value in infos.items():
                     writer.add_scalar(key, value, episode)
-                    check_log.log_info(f"Episode {episode}: {key}={value}")
 
             episode += 1
+
+            # 以前每个指标一行，回合快时直接刷屏；现在一回合一行并限流。
+            elapsed = max(time.time() - started, 1e-6)
+            detail = ' '.join(f"{key}={value}" for key, value in (infos or {}).items()) \
+                if isinstance(infos, dict) else ""
+            check_log.info_throttled(
+                "check_progress",
+                f"check episode={episode} episodes_per_sec={episode / elapsed:.2f} {detail}".strip(),
+                interval=30,
+            )
 
             if args.episodes > 0 and episode >= args.episodes:
                 break
@@ -87,10 +99,15 @@ def main():
             time.sleep(0)
 
         except Exception:
-            check_log.log_exception()
+            check_log.exception("checker loop")
 
     writer.close()
-    check_log.log_info("Checker exited")
+    elapsed = max(time.time() - started, 1e-6)
+    check_log.log_info(
+        f"Checker exited episodes={episode} elapsed={elapsed:.0f}s "
+        f"episodes_per_sec={episode / elapsed:.2f}"
+    )
+    check_log.summary({'episodes': episode})
 
 
 if __name__ == '__main__':

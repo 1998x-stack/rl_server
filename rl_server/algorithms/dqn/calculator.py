@@ -5,6 +5,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+from rl_server.core.optim import trainable_parameters
 from rl_server.core.base import AlgoBaseCalculate
 from rl_server.core.buffers import Experience, ExperienceBuffer
 from rl_server.algorithms.dqn.network import (
@@ -35,7 +36,7 @@ class DQNGymClassicCalculate(AlgoBaseCalculate):
         s_states = np.array([s[0] for s in samples])
         s_actions = np.array([s[1] for s in samples])
         s_rewards = np.array([s[2] for s in samples])
-        s_dones = np.array([s[4] for s in samples])
+        s_dones = np.array([s[3] for s in samples], dtype=np.bool_)
 
         for state, action, reward, done, next_state in zip(s_states[:-1], s_actions[:-1], s_rewards[:-1], s_dones[:-1], s_states[1:]):
             exp = Experience(state, action, reward, done, next_state)
@@ -66,7 +67,7 @@ class DQNGymClassicCalculate(AlgoBaseCalculate):
                 expected_actions = torch.max(next_q_values, 1)[1]
                 target_next_q_values: torch.Tensor = self.target_net.get_q_values(next_states_v)
                 target_next_q_values = target_next_q_values.gather(1, expected_actions.unsqueeze(1)).squeeze(1)
-                target_next_q_values[s_dones] = 0.0
+                target_next_q_values[torch.from_numpy(s_dones).bool()] = 0.0
                 expected_q_values = rewards_v + self.gamma * target_next_q_values
 
             loss = F.mse_loss(q_values, expected_q_values) / self.num_repeat
@@ -75,8 +76,14 @@ class DQNGymClassicCalculate(AlgoBaseCalculate):
         grads = [
             param.grad.data.cpu().numpy()
             if param.grad is not None else None
-            for param in self.calculate_net.parameters()
+            for param in trainable_parameters(self.calculate_net)
         ]
         self.update_version = self.update_version + 1
+
+        # 算法侧指标：没有 loss 的日志无法判断"在学"还是"空转"。
+        model_dict['trainer_metrics'] = {
+            'q_loss': float(loss.item()),
+            'buffer_size': float(len(self.exps_buffer)),
+        }
 
         return [grads], model_dict['TRAIN_VERSION']

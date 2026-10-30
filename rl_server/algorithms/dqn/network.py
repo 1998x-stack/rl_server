@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from types import SimpleNamespace
 
 from rl_server.core.base import AlgoBaseNet, layer_init
+from rl_server.core.optim import assign_gradients, get_cached_adam, trainable_parameters
 
 TRAIN_ENVS = {
     'CartPole': SimpleNamespace(**{
@@ -106,10 +107,11 @@ class DQNGymClassicNet(AlgoBaseNet):
         return action
 
     def update_state(self, version, grads_buffer):
-        train_optim = torch.optim.Adam(params=self.parameters(), lr=TRAIN_CONFIG.LEARNING_RATE)
+        params = trainable_parameters(self)
+        # Adam 必须复用：每次新建会把矩估计清零，等于退化为 sign-SGD。
+        train_optim = get_cached_adam(self, 'main', params, TRAIN_CONFIG.LEARNING_RATE)
         train_optim.zero_grad()
-        for param, grad in zip(self.parameters(), grads_buffer):
-            param.grad = torch.FloatTensor(grad)
+        assign_gradients(params, grads_buffer)
         train_optim.step()
 
     

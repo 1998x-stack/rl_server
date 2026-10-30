@@ -69,3 +69,13 @@ def test_run_scoping_applies_to_exps_and_grads():
     assert client.llen("run_a:grads") == 1
     assert client.llen("exps") == 0
     assert client.llen("grads") == 0
+
+
+def test_experience_queue_rejects_new_batch_at_capacity():
+    client = fakeredis.FakeRedis()
+    transport = cache(client)
+
+    assert transport.push_exps([[1]], 0, max_queue_size=2)
+    assert transport.push_exps([[2]], 0, max_queue_size=2)
+    assert not transport.push_exps([[3]], 0, max_queue_size=2)
+    assert client.llen("run_a:exps") == 2

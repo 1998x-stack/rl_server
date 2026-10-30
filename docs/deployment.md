@@ -9,12 +9,22 @@ description: Deployment guide — Docker Compose, environment setup, and known g
 ## Docker Compose (Distributed Mode)
 
 ```bash
-docker compose up -d          # Redis + grads + 1 sampler
+docker compose up -d          # Redis + grads + trainer + sampler
 docker compose --profile monitor up -d  # + checker (TensorBoard)
 docker compose up -d --scale sampler=4  # 4 sampler workers
 ```
 
 Services communicate via Redis. Environment variables (`REDIS_MODEL_HOST=redis` etc.) route all Redis traffic to the `redis` service container. Config interpolation (`${REDIS_MODEL_HOST:localhost}`) picks these up automatically.
+
+Hosts **and ports** are interpolated: `REDIS_MODEL_HOST`/`REDIS_MODEL_PORT`, `REDIS_EXPS_HOST`/`REDIS_EXPS_PORT`, `REDIS_GRADS_HOST`/`REDIS_GRADS_PORT` (ports default to `6379`). Point the three workers at a Redis on a non-default port when `6379` is taken locally:
+
+```bash
+docker run -d --name rl_server_redis -p 127.0.0.1:6479:6379 redis:7-alpine
+export REDIS_MODEL_PORT=6479 REDIS_EXPS_PORT=6479 REDIS_GRADS_PORT=6479 RL_RUN_ID=local_dev
+python -m rl_server.entrypoints.grads   --env-name DQNGymClassic &   # then trainer + sample
+```
+
+Set the same unique `RL_RUN_ID` for every service in a training job. `queues.len_sample_queue` bounds pending Redis experience batches; samplers wait when that queue reaches capacity. Scale trainers with samplers to keep the queue from staying full.
 
 **Scaling reference:**
 
@@ -36,6 +46,16 @@ The image is ~1.5 GB (PyTorch + MuJoCo deps). MuJoCo rendering libs (`libgl1-mes
 
 ## Environment Setup
 
+### Reproducible local env (no sudo, no Docker)
+
+```bash
+bash scripts/bootstrap_env.sh --all      # base+dev, MuJoCo, MicroRTS (portable JDK 17), Atari
+bash scripts/bootstrap_env.sh            # base + dev deps only
+source .venv/bin/activate
+```
+
+The script creates a Python 3.11 `.venv` (gitignored), installs the CPU PyTorch wheel, `requirements-dev.txt`, and optionally `gymnasium[mujoco]` / `gym-microrts==0.3.2`. It is idempotent, so re-running it only fills gaps. Network flakiness on the ~185 MB JDK download is handled with resume + retry.
+
 ### MuJoCo (Gymnasium) — works out of the box
 
 ```bash
@@ -46,15 +66,32 @@ python -m rl_server.entrypoints.train --env-name MujocoNormal
 
 No additional system dependencies needed. MuJoCo ships its own engine via `mujoco` PyPI package.
 
+### Atari (ALE) — DQNAtari
+
+```bash
+pip install "gymnasium[atari]" opencv-python-headless   # ale-py >=0.10 ships the ROMs
+python -m rl_server.entrypoints.train --env-name DQNAtari
+```
+
+`ale-py` 0.12 bundles the ROMs, so AutoROM is not required. Frame preprocessing uses OpenCV — without
+`opencv-python-headless` every worker dies at startup with `ModuleNotFoundError: cv2` (and, since the
+worker health check, the main log reports `worker died ... exitcode=1` instead of running silently).
+
 ### MicroRTS — requires gym_microrts 0.3.2 (PyPI)
 
 MicroRTS uses the old hierarchical-action `MicroRTSVecEnv` API, NOT the grid-based `MicroRTSGridModeVecEnv` from git-HEAD.
 
 ```bash
-pip install "gym-microrts==0.3.2" dacite
+pip install "gym-microrts==0.3.2" "gym==0.23.1" dacite
 ```
 
-The package needs numpy compat patches (see gotcha #1). The rl_server code (`rl_server/algorithms/ppo/microrts.py`) was written for this API — no code changes needed.
+Requirements beyond pip, all handled by `scripts/bootstrap_env.sh --microrts`:
+
+- **A JDK on the machine.** JPype starts a JVM per worker; with no JDK you get `JVMNotFoundException` at env construction. The bootstrap script unpacks a portable Temurin 17 into `~/.local/opt/jdk17` (no sudo) and links `java`/`javac` into `~/.local/bin`. Set `JAVA_HOME=~/.local/opt/jdk17` if JPype cannot locate the JVM.
+- **`gym==0.23.1`.** gym_microrts 0.3.2 imports `gym.envs.registry.env_specs` at module load; gym 0.24+ turned the registry into a plain dict, so 0.26.x raises `AttributeError` on `import gym_microrts`. 0.23.1 is the last release with the old registry, and it also matches the 4-tuple `step()` the algorithm expects.
+- **numpy compat patches** (see gotcha #1).
+
+The rl_server code (`rl_server/algorithms/ppo/microrts.py`) was written for this API — no code changes needed.
 
 ```bash
 python -m rl_server.entrypoints.train --env-name MicroRTS
@@ -68,15 +105,13 @@ python -m rl_server.entrypoints.train --env-name MicroRTS
 
 ### 1. numpy 2.0 compatibility
 
-gym_microrts 0.3.2 uses `np.int` and `np.float` which were removed in numpy 2.0. The `rl_server/algorithms/ppo/microrts.py` file includes a shim at the top of the file:
+gym_microrts 0.3.2 uses bare `np.int` / `np.float`, removed in numpy 2.0, in three files:
 
-```python
-import numpy
-numpy.int = int
-numpy.float = float
-```
+- `gym_microrts/envs/vec_env.py`
+- `gym_microrts/envs/local_agent_env.py`
+- `gym_microrts/envs/global_agent_env.py`
 
-Additionally, the installed gym_microrts source must be patched for spawned subprocesses (which start fresh Python interpreters):
+Patch the **installed package source** (`scripts/bootstrap_env.sh --microrts` does this automatically and is idempotent). A runtime shim inside `rl_server/algorithms/ppo/microrts.py` would not be enough: sampler workers are separate interpreters, so the aliases must live in the package that they import.
 
 ```bash
 python3 -c "
@@ -143,7 +178,9 @@ MicroRTS with coacAI is CPU-intensive. Each rollout: 512 steps × 8 envs, each s
 
 ### 7. JVM per spawned worker
 
-Each spawned worker starts its own JVM via JPype. With 2 samplers + 1 checker + 1 trainer, expect 4 JVMs consuming ~200-500 MB each = 1-2 GB extra RSS.
+Every MicroRTS env needs a JDK: JPype starts a JVM inside each spawned worker, so a machine without `java` fails at env construction (`JVMNotFoundException`). `scripts/bootstrap_env.sh --microrts` installs a portable JDK 17 without sudo; otherwise `export JAVA_HOME=/path/to/jdk-17`.
+
+With 2 samplers + 1 checker + 1 trainer, expect 4 JVMs consuming ~200-500 MB each = 1-2 GB extra RSS.
 
 ### 8. grid API (git-HEAD) is architecturally incompatible
 

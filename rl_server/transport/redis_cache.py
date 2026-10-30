@@ -8,7 +8,7 @@ import redis
 import zlib
 import pickle
 import torch.nn as nn
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from rl_server.transport.serialization import (
     deserialize_gradients,
@@ -35,18 +35,30 @@ def _retry(max_retries=3, base_delay=1.0):
             last_exception = None
             for attempt in range(max_retries):
                 try:
-                    return func(self, *args, **kwargs)
+                    result = func(self, *args, **kwargs)
+                    if attempt:
+                        # 恢复也要留痕，否则只能从“重试”行去猜服务到底好没好。
+                        self.log.log_info(
+                            f"Redis write recovered op={func.__name__} after_retries={attempt}"
+                        )
+                    return result
                 except redis.ConnectionError as e:
                     last_exception = e
                     if attempt < max_retries - 1:
                         delay = base_delay * (2 ** attempt)
-                        self.log.log_info(f"Redis connection error, retrying in {delay}s (attempt {attempt + 1}/{max_retries})")
+                        # 重试是预期内降级路径：WARNING + 无栈 + 限流，别每次重试刷一个 traceback。
+                        self.log.warning_throttled(
+                            f"redis_retry_{func.__name__}_{attempt}",
+                            f"Redis connection error op={func.__name__} retrying_in={delay}s "
+                            f"attempt={attempt + 1}/{max_retries} error={type(e).__name__}:{e}",
+                            interval=10,
+                        )
                         _time.sleep(delay)
                         try:
                             self.conn.ping()
                         except Exception:
                             self._reconnect()
-            self.log.log_exception()
+            self.log.exception(f"Redis write failed op={func.__name__} attempts={max_retries}")
             raise last_exception
         return wrapper
     return decorator
@@ -111,6 +123,13 @@ class RedisCache:
         namespace = getattr(self, 'namespace', self.redis_config.get('namespace', ''))
         return f"{namespace}:{name}" if namespace else name
 
+    def _safe_llen(self, name: str) -> str:
+        """读取队列深度用于诊断日志；失败时返回 ``?`` 而不是抛异常。"""
+        try:
+            return str(self.conn.llen(self._key(name)))
+        except Exception:
+            return "?"
+
     def __del__(self):
         """析构时关闭连接（忽略异常）。"""
         conn = getattr(self, 'conn', None)
@@ -164,7 +183,7 @@ class RedisCache:
             self.conn.set(self._key(RedisCache.exit_flag_name), int(exit_flag))
             return True
         except Exception:
-            self.log.log_exception()
+            self.log.exception("set_exit_flag failed")
             return False
 
     def get_exit_flag(self):
@@ -180,7 +199,7 @@ class RedisCache:
             else:
                 return None
         except Exception:
-            self.log.log_exception()
+            self.log.exception("get_exit_flag failed")
             return None
 
     @_retry()
@@ -203,7 +222,7 @@ class RedisCache:
         except redis.ConnectionError:
             raise
         except Exception:
-            self.log.log_exception()
+            self.log.exception("set_train_version_model failed")
             return False
 
     def get_train_version(self):
@@ -219,7 +238,7 @@ class RedisCache:
             else:
                 return None
         except Exception:
-            self.log.log_exception()
+            self.log.exception("get_train_version failed")
             return None
 
     def get_train_snapshot(self, model: nn.Module):
@@ -228,8 +247,10 @@ class RedisCache:
             payload = self.conn.get(self._key('train_snapshot'))
             if payload is None:
                 return None
+            # redis 可能返回 bytes 或 str（decode_responses=True），统一成 bytes 再解压。
+            raw = payload.encode() if isinstance(payload, str) else payload
             snapshot = torch.load(
-                io.BytesIO(zlib.decompress(payload)), map_location='cpu', weights_only=True
+                io.BytesIO(zlib.decompress(raw)), map_location='cpu', weights_only=True
             )
             if not isinstance(snapshot, dict) or not isinstance(snapshot.get('version'), int):
                 raise ValueError("Invalid model snapshot version")
@@ -239,7 +260,7 @@ class RedisCache:
             model.load_state_dict(state, strict=True)
             return snapshot['version']
         except Exception:
-            self.log.log_exception()
+            self.log.exception("get_train_snapshot failed")
             return None
 
     def get_train_model(self, model: nn.Module):
@@ -247,7 +268,7 @@ class RedisCache:
         return self.get_train_snapshot(model) is not None
 
     @_retry()
-    def push_exps(self, exps: List, sample_version: int):
+    def push_exps(self, exps: List, sample_version: int, max_queue_size: int | None = None):
         """将一批经验与采样时版本号左压入列表（供 Trainer 侧 ``brpop``）。
 
         Args:
@@ -258,15 +279,33 @@ class RedisCache:
             成功返回 ``True``，否则 ``False``。
         """
         try:
-            exps_info = dict()
-            exps_info['exps'] = exps
-            exps_info['sample_version'] = sample_version
-            exps_info = pickle.dumps(exps_info, protocol=pickle.HIGHEST_PROTOCOL)
-            exps_info = zlib.compress(exps_info)
-            self.conn.lpush(self._key(RedisCache.exps_name), exps_info)
-            return True
+            payload_dict: Dict[str, Any] = {}
+            payload_dict['exps'] = exps
+            payload_dict['sample_version'] = sample_version
+            payload = zlib.compress(pickle.dumps(payload_dict, protocol=pickle.HIGHEST_PROTOCOL))
+            key = self._key(RedisCache.exps_name)
+            if max_queue_size is None:
+                self.conn.lpush(key, payload)
+                return True
+            if max_queue_size < 1:
+                raise ValueError('max_queue_size must be positive')
+            with self.conn.pipeline() as pipe:
+                while True:
+                    try:
+                        pipe.watch(key)
+                        if pipe.llen(key) >= max_queue_size:
+                            pipe.unwatch()
+                            return False
+                        pipe.multi()
+                        pipe.lpush(key, payload)
+                        pipe.execute()
+                        return True
+                    except redis.WatchError:
+                        continue
+        except redis.ConnectionError:
+            raise
         except Exception:
-            self.log.log_exception()
+            self.log.exception("push_exps failed")
             return False
 
     def pop_exps(self):
@@ -279,14 +318,25 @@ class RedisCache:
             exps_info = self.conn.brpop(self._key(RedisCache.exps_name), timeout=5)
             if exps_info is None:
                 self._pop_exps_timeouts += 1
-                if self._pop_exps_timeouts % 10 == 0:
-                    self.log.log_info(f"pop_exps timeout x{self._pop_exps_timeouts} (last at {_time.strftime('%H:%M:%S', _time.localtime(_time.time()))})")
+                # 空队列是常态：限流输出并带上累计次数与队列深度。
+                self.log.info_throttled(
+                    "pop_exps_timeout",
+                    f"pop_exps empty timeouts={self._pop_exps_timeouts} "
+                    f"queue_len={self._safe_llen(RedisCache.exps_name)}",
+                    interval=60,
+                )
                 return None, None
+            if self._pop_exps_timeouts:
+                self.log.log_info(
+                    f"pop_exps resumed after {self._pop_exps_timeouts} empty polls"
+                )
+                self._pop_exps_timeouts = 0
             exps_info = zlib.decompress(exps_info[1])
             exps_info = pickle.loads(exps_info)
             return exps_info['exps'], exps_info['sample_version']
         except Exception:
-            self.log.log_exception()
+            # 与“队列为空”区分开：以前反序列化/连接故障和空数据一样静默返回 None。
+            self.log.exception("pop_exps failed")
             return None, None
 
     @_retry()
@@ -302,16 +352,17 @@ class RedisCache:
             成功返回 ``True``，否则 ``False``。
         """
         try:
-            grads_info = dict()
-            grads_info['grads'] = serialize_gradients(grads)  # numpy 优化序列化
-            grads_info['grads_version'] = grads_version
-            grads_info['sample_version'] = sample_version
-            grads_info = pickle.dumps(grads_info, protocol=pickle.HIGHEST_PROTOCOL)
-            grads_info = zlib.compress(grads_info)
-            self.conn.lpush(self._key(RedisCache.grads_name), grads_info)
+            grads_payload: Dict[str, Any] = {}
+            grads_payload['grads'] = serialize_gradients(grads)  # numpy 优化序列化
+            grads_payload['grads_version'] = grads_version
+            grads_payload['sample_version'] = sample_version
+            compressed = zlib.compress(
+                pickle.dumps(grads_payload, protocol=pickle.HIGHEST_PROTOCOL)
+            )
+            self.conn.lpush(self._key(RedisCache.grads_name), compressed)
             return True
         except Exception:
-            self.log.log_exception()
+            self.log.exception("push_grads failed")
             return False
 
     def pop_grads(self):
@@ -324,13 +375,22 @@ class RedisCache:
             grads_info = self.conn.brpop(self._key(RedisCache.grads_name), timeout=5)
             if grads_info is None:
                 self._pop_grads_timeouts += 1
-                if self._pop_grads_timeouts % 10 == 0:
-                    self.log.log_info(f"pop_grads timeout x{self._pop_grads_timeouts}")
+                self.log.info_throttled(
+                    "pop_grads_timeout",
+                    f"pop_grads empty timeouts={self._pop_grads_timeouts} "
+                    f"queue_len={self._safe_llen(RedisCache.grads_name)}",
+                    interval=60,
+                )
                 return None, None, None
+            if self._pop_grads_timeouts:
+                self.log.log_info(
+                    f"pop_grads resumed after {self._pop_grads_timeouts} empty polls"
+                )
+                self._pop_grads_timeouts = 0
             grads_info = zlib.decompress(grads_info[1])
             grads_info = pickle.loads(grads_info)
             grads_info['grads'] = deserialize_gradients(grads_info['grads'])  # numpy 反序列化
             return grads_info['grads'], grads_info['grads_version'], grads_info['sample_version']
         except Exception:
-            self.log.log_exception()
+            self.log.exception("pop_grads failed")
             return None, None, None

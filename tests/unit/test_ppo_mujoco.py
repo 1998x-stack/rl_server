@@ -58,7 +58,7 @@ class TestMujocoNormalNet:
         net = MujocoNormalNet()
         params_before = [p.data.clone() for p in net.parameters()]
 
-        grads = [np.random.randn(*p.shape).astype(np.float32) for p in net.parameters()]
+        grads = [np.asarray(np.random.randn(*p.shape), dtype=np.float32) for p in net.parameters()]
         net.update_state(1, grads)
 
         params_after = [p.data.clone() for p in net.parameters()]
