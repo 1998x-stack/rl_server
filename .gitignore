@@ -8,6 +8,7 @@ __pycache__/
 
 # Virtual environments
 .venv/
+.venv-*/
 venv/
 env/
 
@@ -17,6 +18,17 @@ dist/
 *.egg-info/
 .eggs/
 pip-wheel-metadata/
+
+# Isolated check artifacts & tooling venv (scripts/run_checks.py, .tooling venv)
+.checks/
+.tooling/
+
+# Agent / session scratch files
+.pi/
+.claude/
+.debug-journal.md
+*.orig
+*.rej
 
 # Test / coverage
 .pytest_cache/
@@ -51,7 +63,13 @@ models/
 .env.*
 !.env.example
 
+# Local reports produced by scripts/evaluate.py (baselines under eval/ are tracked)
+.reports/
+
 # Torch / checkpoints (optional local pattern)
 # *.pt
 # *.pth
 # *.td
+
+# Check tooling caches
+__pycache__/

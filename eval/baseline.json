@@ -1,0 +1,348 @@
+{
+  "unit": {
+    "tests": 238
+  },
+  "lint": {
+    "findings": 0
+  },
+  "typecheck": {
+    "errors": 0
+  },
+  "e2e": {
+    "DQNGymClassic": {
+      "versions_per_sec": 7.81,
+      "versions": 87,
+      "metric_names": [
+        "arrival_lag_p95",
+        "grad_norm",
+        "q_loss",
+        "queue_grads",
+        "reject_pct",
+        "sample_lag"
+      ],
+      "metric_trends": {
+        "reject_pct": {
+          "first": 0.0,
+          "last": 3.5
+        },
+        "queue_grads": {
+          "first": 12.0,
+          "last": 0.0
+        },
+        "sample_lag": {
+          "first": 10.0,
+          "last": 107.0
+        },
+        "arrival_lag_p95": {
+          "first": 9.0,
+          "last": 12.0
+        },
+        "q_loss": {
+          "first": 0.01554,
+          "last": 0.01512
+        },
+        "grad_norm": {
+          "first": 2.828,
+          "last": 3.39
+        }
+      },
+      "reject_pct": 3.4,
+      "log_lines_per_version": 0.33
+    },
+    "MujocoNormal": {
+      "versions_per_sec": 7.38,
+      "versions": 48,
+      "metric_names": [
+        "arrival_lag_p95",
+        "entropy",
+        "grad_norm",
+        "policy_loss",
+        "queue_grads",
+        "reject_pct",
+        "sample_lag",
+        "value_loss"
+      ],
+      "metric_trends": {
+        "reject_pct": {
+          "first": 0.0,
+          "last": 10.1
+        },
+        "queue_grads": {
+          "first": 34.0,
+          "last": 29.0
+        },
+        "sample_lag": {
+          "first": 10.0,
+          "last": 34.0
+        },
+        "arrival_lag_p95": {
+          "first": 9.0,
+          "last": 22.0
+        },
+        "policy_loss": {
+          "first": 21.47,
+          "last": 17.19
+        },
+        "value_loss": {
+          "first": 1877.0,
+          "last": 1155.0
+        },
+        "entropy": {
+          "first": -0.1838,
+          "last": -0.1851
+        },
+        "grad_norm": {
+          "first": 933.6,
+          "last": 1188.0
+        }
+      },
+      "reject_pct": 11.1,
+      "log_lines_per_version": 0.38
+    },
+    "MujocoBeta": {
+      "versions_per_sec": 6.95,
+      "versions": 43,
+      "metric_names": [
+        "arrival_lag_p95",
+        "entropy",
+        "grad_norm",
+        "policy_loss",
+        "queue_grads",
+        "reject_pct",
+        "sample_lag",
+        "value_loss"
+      ],
+      "metric_trends": {
+        "reject_pct": {
+          "first": 0.0,
+          "last": 11.5
+        },
+        "queue_grads": {
+          "first": 33.0,
+          "last": 6.0
+        },
+        "sample_lag": {
+          "first": 10.0,
+          "last": 51.0
+        },
+        "arrival_lag_p95": {
+          "first": 9.0,
+          "last": 22.0
+        },
+        "policy_loss": {
+          "first": -0.08464,
+          "last": -0.04441
+        },
+        "value_loss": {
+          "first": 6.944,
+          "last": 5.568
+        },
+        "entropy": {
+          "first": 0.01505,
+          "last": 0.0167
+        },
+        "grad_norm": {
+          "first": 7.232,
+          "last": 5.314
+        }
+      },
+      "reject_pct": 11.5,
+      "log_lines_per_version": 0.36
+    },
+    "SACMujocoNormal": {
+      "versions_per_sec": 5.47,
+      "versions": 30,
+      "metric_names": [
+        "actor_loss",
+        "alpha",
+        "alpha_loss",
+        "arrival_lag_p95",
+        "entropy",
+        "grad_norm",
+        "q_loss",
+        "queue_grads",
+        "reject_pct",
+        "sample_lag"
+      ],
+      "metric_trends": {
+        "reject_pct": {
+          "first": 0.0,
+          "last": 29.8
+        },
+        "queue_grads": {
+          "first": 54.0,
+          "last": 3.0
+        },
+        "sample_lag": {
+          "first": 10.0,
+          "last": 47.0
+        },
+        "arrival_lag_p95": {
+          "first": 9.0,
+          "last": 31.0
+        },
+        "q_loss": {
+          "first": 0.6778,
+          "last": 0.6601
+        },
+        "actor_loss": {
+          "first": -0.2436,
+          "last": -0.01132
+        },
+        "alpha_loss": {
+          "first": -4.763,
+          "last": -5.164
+        },
+        "entropy": {
+          "first": 3.288,
+          "last": 2.664
+        },
+        "alpha": {
+          "first": 0.2,
+          "last": 0.1971
+        },
+        "grad_norm": {
+          "first": 4.235,
+          "last": 4.01
+        }
+      },
+      "reject_pct": 30.8,
+      "log_lines_per_version": 0.42
+    },
+    "TD3MujocoNormal": {
+      "versions_per_sec": 7.58,
+      "versions": 52,
+      "metric_names": [
+        "arrival_lag_p95",
+        "entropy",
+        "grad_norm",
+        "q_loss",
+        "queue_grads",
+        "reject_pct",
+        "sample_lag"
+      ],
+      "metric_trends": {
+        "reject_pct": {
+          "first": 0.0,
+          "last": 11.8
+        },
+        "queue_grads": {
+          "first": 32.0,
+          "last": 11.0
+        },
+        "sample_lag": {
+          "first": 10.0,
+          "last": 45.0
+        },
+        "arrival_lag_p95": {
+          "first": 9.0,
+          "last": 22.0
+        },
+        "q_loss": {
+          "first": 0.174,
+          "last": 0.0884
+        },
+        "entropy": {
+          "first": 0.9189,
+          "last": 0.9119
+        },
+        "grad_norm": {
+          "first": 2.484,
+          "last": 1.404
+        }
+      },
+      "reject_pct": 10.9,
+      "log_lines_per_version": 0.35
+    },
+    "MicroRTS": {
+      "versions_per_sec": 3.34,
+      "versions": 23,
+      "metric_names": [
+        "arrival_lag_p95",
+        "grad_norm",
+        "queue_grads",
+        "reject_pct",
+        "sample_lag"
+      ],
+      "metric_trends": {
+        "reject_pct": {
+          "first": 0.0,
+          "last": 0.0
+        },
+        "queue_grads": {
+          "first": 0.0,
+          "last": 0.0
+        },
+        "sample_lag": {
+          "first": 10.0,
+          "last": 7.0
+        },
+        "arrival_lag_p95": {
+          "first": 0.0,
+          "last": 0.0
+        },
+        "grad_norm": {
+          "first": 1.575,
+          "last": 4.079
+        }
+      },
+      "reject_pct": 0.0,
+      "log_lines_per_version": 0.58
+    },
+    "DQNAtari": {
+      "versions_per_sec": 2.28,
+      "versions": 23,
+      "metric_names": [
+        "arrival_lag_p95",
+        "clip_frac",
+        "grad_norm",
+        "grad_norm_preclip",
+        "grad_scale",
+        "q_loss",
+        "queue_grads",
+        "reject_pct",
+        "sample_lag"
+      ],
+      "metric_trends": {
+        "reject_pct": {
+          "first": 0.0,
+          "last": 0.0
+        },
+        "queue_grads": {
+          "first": 0.0,
+          "last": 0.0
+        },
+        "sample_lag": {
+          "first": 10.0,
+          "last": 30.0
+        },
+        "arrival_lag_p95": {
+          "first": 3.0,
+          "last": 3.0
+        },
+        "q_loss": {
+          "first": 136.6,
+          "last": 64.96
+        },
+        "grad_norm_preclip": {
+          "first": 10510.0,
+          "last": 15790.0
+        },
+        "clip_frac": {
+          "first": 1.0,
+          "last": 1.0
+        },
+        "grad_scale": {
+          "first": 1051.0,
+          "last": 1579.0
+        },
+        "grad_norm": {
+          "first": 10.0,
+          "last": 10.0
+        }
+      },
+      "reject_pct": 0.0,
+      "log_lines_per_version": 0.79
+    }
+  }
+}

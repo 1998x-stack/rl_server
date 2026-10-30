@@ -1,0 +1,18 @@
+# Lint 配置（scripts/run_checks.py lint 使用）。
+# 目标：只保留真问题（未使用变量/导入、未定义名、重复键等），先把噪音降到零再逐步加严。
+line-length = 120
+target-version = "py311"
+
+[lint]
+select = ["E4", "E7", "E9", "F", "W6", "B006", "B008", "B018", "B023"]
+ignore = [
+    "E402",  # 延迟导入（算法注册表按需导入）是刻意设计
+    "F401",  # __init__ 重导出
+]
+
+[lint.per-file-ignores]
+"tests/*" = ["B011"]
+# v3 运行时/契约文件刻意使用紧凑写法（多语句单行）。
+"rl_server/runtime/v3/*" = ["E701", "E702"]
+"tests/v3/*" = ["E701", "E702"]
+"rl_server/algorithms/**" = ["F841"]  # 训练循环里有大量中间张量，暂不强制清理
