@@ -314,13 +314,18 @@ def main():
                     sample_lag += (f" arrival_lag_p95={_arrival_lag_p95(arrival_lags)}"
                                    f" max_lag={effective_max_lag}")
                 _total = accepted_gradients + rejected_gradients
-                train_log.info_every(
-                    "version_progress", progress_interval,
+                progress_line = (
                     f"version={current_train_version} rate={current_train_version / elapsed:.2f}ver/s "
                     f"accepted={accepted_gradients} rejected={rejected_gradients} "
-                    f"cold_start_rejected={cold_start_rejected} reject_pct={100.0 * rejected_gradients / _total if _total else 0.0:.1f} "
-                    f"queue_grads={_queue_depth(grads_queue)}{sample_lag}{metric_text}",
+                    f"cold_start_rejected={cold_start_rejected} "
+                    f"reject_pct={100.0 * rejected_gradients / _total if _total else 0.0:.1f} "
+                    f"queue_grads={_queue_depth(grads_queue)}{sample_lag}{metric_text}"
                 )
+                train_log.info_every("version_progress", progress_interval, progress_line)
+                # 首个版本额外输出一行：短跑或 CI 冒烟里版本数常不到 progress_interval，
+                # 否则整段日志一条指标都没有（可观测性断档）。
+                if current_train_version == 1:
+                    train_log.info(progress_line)
 
                 if (checkpoint_interval > 0
                         and current_train_version % checkpoint_interval == 0):

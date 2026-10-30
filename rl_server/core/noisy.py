@@ -9,6 +9,16 @@ import torch.nn.functional as F
 import torch.autograd as autograd
 
 
+def _as_tensor(value: Any) -> torch.Tensor:
+    """把 ``nn.Module`` 上的属性/缓冲区收敛成 ``Tensor``。
+
+    不同版本的 torch stub 对 ``weight``/registered buffer 的标注不一致
+    （``Tensor`` vs ``Tensor | Module``），直接 cast 既可能在 A 版本被判定"冗余"、
+    又在 B 版本被判定"不兼容"。参数类型是 ``Any`` 的这里做一次收敛，两个版本都稳定。
+    """
+    return cast(torch.Tensor, value)
+
+
 class NoisyLinear(nn.Linear):
     """因子化高斯噪声线性层：训练时对权重与偏置注入可学习尺度的随机噪声以增强探索。
 
@@ -63,15 +73,12 @@ class NoisyLinear(nn.Linear):
         if not self.training:
             return super(NoisyLinear, self).forward(input)
 
-        # registered buffer 在不同版本的 torch stub 里被标注为 Tensor | Module，
-        # 用 cast 显式收敛类型（运行时无开销）。
-        epsilon_weight = cast(torch.Tensor, self.epsilon_weight)
-        bias: torch.Tensor | None = cast(torch.Tensor | None, self.bias)
+        epsilon_weight = _as_tensor(self.epsilon_weight)
+        bias = None if self.bias is None else _as_tensor(self.bias)
         if bias is not None:
-            epsilon_bias = cast(torch.Tensor, self.epsilon_bias)
-            bias = bias + self.sigma_bias * epsilon_bias.data
+            bias = bias + _as_tensor(self.sigma_bias) * _as_tensor(self.epsilon_bias).data
 
-        weight: torch.Tensor = self.sigma_weight * epsilon_weight.data + cast(torch.Tensor, self.weight)
+        weight = _as_tensor(self.sigma_weight) * epsilon_weight.data + _as_tensor(self.weight)
         return F.linear(input, weight, bias)
 
     def sample_noise(self):
