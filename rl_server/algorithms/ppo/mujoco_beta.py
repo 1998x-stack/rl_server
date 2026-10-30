@@ -11,6 +11,7 @@ from torch.distributions.beta import Beta
 from types import SimpleNamespace
 
 from rl_server.core.base import AlgoBaseNet, AlgoBaseAgent, AlgoBaseCalculate, layer_init
+from rl_server.core.optim import assign_gradients, get_cached_adam, trainable_parameters
 from rl_server.core.noisy import NoisyLinear, GradCoef
 
 TRAIN_ENVS = {
@@ -224,10 +225,11 @@ class MujocoBetaNet(AlgoBaseNet):
         return values, log_probs, dists.entropy()
 
     def update_state(self, version, grads_buffer):
-        train_optim = torch.optim.Adam(params=self.parameters(), lr=TRAIN_CONFIG['LEARNING_RATE'])
+        params = trainable_parameters(self)
+        # 复用 Adam：每次新建会丢掉一阶/二阶矩。
+        train_optim = get_cached_adam(self, 'main', params, TRAIN_CONFIG['LEARNING_RATE'])
         train_optim.zero_grad()
-        for param, grad in zip(self.parameters(), grads_buffer):
-            param.grad = torch.FloatTensor(grad)
+        assign_gradients(params, grads_buffer)
         train_optim.step()
 
         if TRAIN_ENVS[current_env_name].USE_NOISE:
@@ -259,6 +261,10 @@ class MujocoBetaAgent(AlgoBaseAgent):
     def sample_multi_envs(self, model_dict):
         exps = [[] for _ in range(self.num_envs)]
         for _ in range(self.num_steps):
+            # 采样中途响应退出请求：否则一次 rollout（MuJoCo 数秒、MicroRTS 更久）
+            # 期间 worker 无法退出，只能等满 grace 后被 terminate（env/JVM 清理全丢）。
+            if model_dict.get('is_exit'):
+                return None
             sample_acitons, actions, log_probs = self._get_sample_actions(self.states)
             for i in range(self.num_envs):
                 next_state_n, reward_n, done_n, truncated, _ = self.envs[i].step(actions[i])
@@ -281,6 +287,10 @@ class MujocoBetaAgent(AlgoBaseAgent):
         log_probs = []
 
         while True:
+            # 评估中途让出：否则一次回合要跑满（MuJoCo 数秒、MicroRTS 更久），
+            # worker 只能被 SIGTERM 强杀，env/JVM 与 semaphore 都来不及清理。
+            if self._stop_requested():
+                return None
             mu, entropy, log_prob = self._get_single_action(self.states)
             next_state_n, reward_n, is_done, truncated, _ = self.envs.step(mu)
             if is_done:
@@ -412,8 +422,19 @@ class MujocoBetaCalculate(AlgoBaseCalculate):
         grads = [
             param.grad.data.cpu().numpy()
             if param.grad is not None else None
-            for param in self.calculate_net.parameters()
+            for param in trainable_parameters(self.calculate_net)
         ]
+
+        total_norm = 0.0
+        for param in self.calculate_net.parameters():
+            if param.grad is not None:
+                total_norm += float(param.grad.data.norm(2).item()) ** 2
+        model_dict['trainer_metrics'] = {
+            'policy_loss': float(pg_loss.item()),
+            'value_loss': float(v_loss.item()),
+            'entropy': float(e_loss.item()),
+            'gradient_norm': total_norm ** 0.5,
+        }
 
         return [grads], train_version
 

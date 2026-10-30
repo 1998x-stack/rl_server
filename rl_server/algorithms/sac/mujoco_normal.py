@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """MuJoCo 连续控制上的 SAC：双 Q 网络、高斯策略与温度参数。
 """
+import copy
+
 import torch
 import torch.nn as nn
 import gymnasium as gym
@@ -11,6 +13,7 @@ from torch.nn import functional as F
 from types import SimpleNamespace
 
 from rl_server.core.base import AlgoBaseNet, AlgoBaseAgent, AlgoBaseCalculate, layer_init
+from rl_server.core.optim import assign_gradients, get_cached_adam, trainable_parameters
 from rl_server.core.noisy import NoisyLinear
 from rl_server.core.buffers import Experience, ExperienceBuffer
 
@@ -108,6 +111,13 @@ TRAIN_CONFIG = dict()
 TRAIN_CONFIG['GAMMA'] = 0.99
 TRAIN_CONFIG['BATCH_SIZE'] = 256
 TRAIN_CONFIG['LEARNING_RATE'] = 2.5e-4
+# 熵温度 α（固定值）。原实现完全没有 actor/α 项，策略参数拿不到梯度。
+# 初始熵温度（之后由 log_alpha 学习；目标熵取 -act_dim，见 calculator）
+TRAIN_CONFIG['ALPHA'] = 0.2
+# 目标网络软更新系数
+TRAIN_CONFIG['TAU'] = 0.005
+# 熵温度通常用比策略更大的学习率单独优化
+TRAIN_CONFIG['ALPHA_LEARNING_RATE'] = 3e-4
 
 # Model and environment config
 MODEL_CONFIG = dict()
@@ -191,6 +201,34 @@ class MujocoNormalQNet(AlgoBaseNet):
             layer_init(nn.Linear(hide_dim, 1))
         )
 
+        # 可学习的熵温度（log 空间保证 α>0）。它和其它参数一样参与梯度聚合，
+        # 因此 checkpoint 里会多出 ``log_alpha`` 一个键（旧检查点用 strict=False 兼容加载）。
+        self.log_alpha = nn.Parameter(torch.tensor(float(np.log(TRAIN_CONFIG['ALPHA']))))
+
+        # 目标 critic 放在网络内部：随 checkpoint 一起持久化、由 update_state 统一做
+        # Polyak 更新，避免每个 trainer 进程各持一份而互相漂移。它们 requires_grad=False，
+        # 因此不会进入梯度聚合（见 core.optim.trainable_parameters）。
+        self.target_q1_value = copy.deepcopy(self.q1_value)
+        self.target_q2_value = copy.deepcopy(self.q2_value)
+        for param in self.target_q1_value.parameters():
+            param.requires_grad_(False)
+        for param in self.target_q2_value.parameters():
+            param.requires_grad_(False)
+
+    @torch.no_grad()
+    def sync_targets(self):
+        """用在线 critic 覆盖目标 critic（旧检查点缺目标网络时调用）。"""
+        for target, online in (
+            (self.target_q1_value, self.q1_value),
+            (self.target_q2_value, self.q2_value),
+        ):
+            target.load_state_dict(online.state_dict())
+
+    @property
+    def alpha(self) -> torch.Tensor:
+        """当前熵温度 α = exp(log_alpha)。"""
+        return self.log_alpha.exp()
+
     def get_distributions(self, states):
         mus = self.mu(states)
         log_stds = self.log_std(states).clamp(-20, 2)
@@ -218,11 +256,35 @@ class MujocoNormalQNet(AlgoBaseNet):
         return values, log_probs, dists.entropy()
 
     def update_state(self, version, grads_buffer):
-        train_optim = torch.optim.Adam(params=self.parameters(), lr=TRAIN_CONFIG['LEARNING_RATE'])
-        train_optim.zero_grad()
-        for param, grad in zip(self.parameters(), grads_buffer):
-            param.grad = torch.FloatTensor(grad)
-        train_optim.step()
+        params = trainable_parameters(self)
+        assign_gradients(params, grads_buffer)
+
+        # 三组参数各用自己的优化器：策略、critic、熵温度（α 用更大学习率）。
+        # 复用优化器实例，Adam 的矩估计才能跨版本累积。
+        policy_params = list(self.mu.parameters()) + list(self.log_std.parameters())
+        critic_params = list(self.q1_value.parameters()) + list(self.q2_value.parameters())
+        alpha_params = [self.log_alpha]
+
+        for name, group, lr in (
+            ('policy', policy_params, TRAIN_CONFIG['LEARNING_RATE']),
+            ('critic', critic_params, TRAIN_CONFIG['LEARNING_RATE']),
+            ('alpha', alpha_params, TRAIN_CONFIG['ALPHA_LEARNING_RATE']),
+        ):
+            optimizer = get_cached_adam(self, name, group, lr)
+            optimizer.step()
+
+        for param in params:
+            param.grad = None
+
+        # Polyak 软更新目标 critic（不产生梯度）。
+        tau = TRAIN_CONFIG['TAU']
+        with torch.no_grad():
+            for target, online in (
+                (self.target_q1_value, self.q1_value),
+                (self.target_q2_value, self.q2_value),
+            ):
+                for target_param, online_param in zip(target.parameters(), online.parameters()):
+                    target_param.mul_(1.0 - tau).add_(online_param, alpha=tau)
 
         if TRAIN_ENVS[current_env_name].USE_NOISE:
             for noise_layer in self.alpha_noisy_layers:
@@ -270,6 +332,10 @@ class MujocoNormalQAgent(AlgoBaseAgent):
         exps = [[] for _ in range(self.num_envs)]
 
         for _ in range(self.num_steps):
+            # 采样中途响应退出请求：否则一次 rollout（MuJoCo 数秒、MicroRTS 更久）
+            # 期间 worker 无法退出，只能等满 grace 后被 terminate（env/JVM 清理全丢）。
+            if model_dict.get('is_exit'):
+                return None
             actions = self._get_sample_actions(self.states)
             for i in range(self.num_envs):
                 next_state_n, reward_n, done_n, truncated, _ = self.envs[i].step(actions[i])
@@ -291,6 +357,10 @@ class MujocoNormalQAgent(AlgoBaseAgent):
         entropys = []
 
         while True:
+            # 评估中途让出：否则一次回合要跑满（MuJoCo 数秒、MicroRTS 更久），
+            # worker 只能被 SIGTERM 强杀，env/JVM 与 semaphore 都来不及清理。
+            if self._stop_requested():
+                return None
             mu, entropy = self._get_single_action(self.states)
             next_state_n, reward_n, is_done, truncated, _ = self.envs.step(mu)
             if is_done:
@@ -341,6 +411,11 @@ class MujocoNormalQCalculate(AlgoBaseCalculate):
 
         self.batch_size = TRAIN_CONFIG['BATCH_SIZE']
         self.exps_buffer = ExperienceBuffer(capacity=MAX_BUFFER_SIZE)
+        # 目标 critic 只活在 trainer 进程里（不进 checkpoint、不参与聚合），首次使用时
+        # 用在线 critic 初始化，之后按 TAU 软更新。
+        self.target_q1_value = None
+        self.target_q2_value = None
+        self.tau = TRAIN_CONFIG['TAU']
 
     def generate_grads(self, samples, model_dict):
 
@@ -364,30 +439,84 @@ class MujocoNormalQCalculate(AlgoBaseCalculate):
 
         self.calculate_net.zero_grad()
 
+        # actor / α 项都使用"当前温度"的 detached 副本，温度本身单独由 alpha loss 学习。
+        alpha = self.calculate_net.alpha.detach()
+        # 标准 SAC 的目标熵：-动作维度
+        target_entropy = -float(TRAIN_ENVS[current_env_name].ACT_DIM)
+        q_loss_value = 0.0
+        actor_loss_value = 0.0
+        entropy_value = 0.0
+        alpha_loss_value = 0.0
+
         for _ in range(REPEAT_TIME):
             states, actions, rewards, dones, next_states = self.exps_buffer.sample(self.batch_size)
 
             t_states = torch.Tensor(states).to(self.device)
             t_actions = torch.Tensor(actions).to(self.device)
             t_rewards = torch.Tensor(rewards).to(self.device)
+            t_dones = torch.Tensor(dones).to(self.device)
             t_next_states = torch.Tensor(next_states).to(self.device)
 
-            # Q loss
+            # ---- critic：软贝尔曼误差（终局转移必须把自举项置零）----
             q1_values, q2_values = self.calculate_net.get_q_values(t_states, t_actions)
 
             with torch.no_grad():
                 next_actions = self.calculate_net.get_sample_data(t_next_states)
-                next_q1, next_q2 = self.calculate_net.get_q_values(t_next_states, next_actions)
+                # 用目标 critic 估值（原实现用在线 critic 自己给自己当 target）。
+                next_q1 = self.calculate_net.target_q1_value(
+                    torch.cat((t_next_states, next_actions), -1))
+                next_q2 = self.calculate_net.target_q2_value(
+                    torch.cat((t_next_states, next_actions), -1))
                 next_q = torch.min(next_q1, next_q2)
-                target_q = t_rewards.unsqueeze(1) + gamma * next_q
+                target_q = t_rewards.unsqueeze(1) + gamma * (1.0 - t_dones.unsqueeze(1)) * next_q
 
             q_loss = (F.mse_loss(q1_values, target_q) + F.mse_loss(q2_values, target_q)) / REPEAT_TIME
             q_loss.backward()
 
+            # ---- actor：重参数化策略梯度 ----
+            # 先把 critic 的叶子参数冻结：actor loss 只应给策略参数产生梯度，
+            # 否则 critic 会被同时推向两个方向（原来这里压根没有 actor 项）。
+            critic_params = list(self.calculate_net.q1_value.parameters()) + \
+                list(self.calculate_net.q2_value.parameters())
+            for param in critic_params:
+                param.requires_grad_(False)
+
+            dists = self.calculate_net.get_distributions(t_states)
+            raw_actions = dists.rsample()
+            pi_actions = torch.tanh(raw_actions)
+            # tanh 压缩后的 log-prob 需要雅可比修正，否则策略梯度有偏。
+            log_prob = dists.log_prob(raw_actions) - torch.log(1.0 - pi_actions.pow(2) + 1e-6)
+            log_prob = log_prob.sum(dim=-1, keepdim=True)
+
+            q1_pi, q2_pi = self.calculate_net.get_q_values(t_states, pi_actions)
+            actor_loss = (alpha * log_prob - torch.min(q1_pi, q2_pi)).mean() / REPEAT_TIME
+            actor_loss.backward()
+
+            for param in critic_params:
+                param.requires_grad_(True)
+
+            # ---- 温度：向目标熵 -act_dim 靠近 ----
+            alpha_loss = -(self.calculate_net.log_alpha * (log_prob + target_entropy).detach()).mean()
+            alpha_loss.backward()
+            alpha_loss_value += float(alpha_loss.item())
+
+            q_loss_value += float(q_loss.item())
+            actor_loss_value += float(actor_loss.item())
+            entropy_value += float(dists.entropy().sum(dim=-1).mean().item())
+
         grads = [
             param.grad.data.cpu().numpy()
             if param.grad is not None else None
-            for param in self.calculate_net.parameters()
+            for param in trainable_parameters(self.calculate_net)
         ]
+
+        # 指标交给 trainer 收集（随梯度批次传给主进程 → TensorBoard + 进度行）。
+        model_dict['trainer_metrics'] = {
+            'q_loss': q_loss_value,
+            'actor_loss': actor_loss_value,
+            'alpha_loss': alpha_loss_value,
+            'entropy': entropy_value,
+            'alpha': float(self.calculate_net.alpha.detach()),
+        }
 
         return [grads], train_version
